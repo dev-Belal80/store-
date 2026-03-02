@@ -8,6 +8,8 @@ use Illuminate\Validation\ValidationException;
 
 class ProductService
 {
+    public function __construct(private CacheService $cacheService) {}
+
     public function create(array $data, int $storeId): Product
     {
         return DB::transaction(function () use ($data, $storeId) {
@@ -26,6 +28,9 @@ class ProductService
                 ->whereKey($product->category_id)
                 ->increment('products_count');
 
+            $this->cacheService->invalidateProductsDropdown($storeId);
+            $this->cacheService->invalidateCategories($storeId);
+
             return $product;
         });
     }
@@ -34,6 +39,7 @@ class ProductService
     {
         return DB::transaction(function () use ($id, $data) {
             $product = Product::findOrFail($id);
+            $storeId = (int) $product->store_id;
             $oldCategoryId = (int) $product->category_id;
 
             $product->update($data);
@@ -45,6 +51,9 @@ class ProductService
                 Category::query()->whereKey($newCategoryId)->increment('products_count');
             }
 
+            $this->cacheService->invalidateProductsDropdown($storeId);
+            $this->cacheService->invalidateCategories($storeId);
+
             return $product->fresh();
         });
     }
@@ -53,6 +62,7 @@ class ProductService
     {
         DB::transaction(function () use ($id) {
             $product = Product::findOrFail($id);
+            $storeId = (int) $product->store_id;
 
             Category::query()
                 ->whereKey($product->category_id)
@@ -60,7 +70,15 @@ class ProductService
                 ->decrement('products_count');
 
             $product->delete();
+
+            $this->cacheService->invalidateProductsDropdown($storeId);
+            $this->cacheService->invalidateCategories($storeId);
         });
+    }
+
+    public function listForDropdown(int $storeId): array
+    {
+        return $this->cacheService->getProductsDropdown($storeId);
     }
 
     public function deleteCategory(int $categoryId, int $storeId): void

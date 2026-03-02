@@ -41,11 +41,11 @@ class LargeDemoDataSeeder extends Seeder
         $storeId = $this->nextId('stores');
         DB::table('stores')->insert([
             'id' => $storeId,
-            'name' => 'Ayad Group Store',
-            'owner_name' => 'Store Owner',
+            'name' => 'متجر مجموعة أياد',
+            'owner_name' => 'مالك المتجر',
             'email' => 'store@ayad.com',
             'phone' => '0500000000',
-            'address' => 'Cairo',
+            'address' => 'القاهرة',
             'is_active' => true,
             'created_at' => $now,
             'updated_at' => $now,
@@ -56,7 +56,7 @@ class LargeDemoDataSeeder extends Seeder
             'id' => $storeOwnerId,
             'is_active' => true,
             'store_id' => $storeId,
-            'name' => 'Store Owner',
+            'name' => 'مالك المتجر',
             'email' => 'owner@ayad.com',
             'role' => 'store_owner',
             'email_verified_at' => $now,
@@ -73,7 +73,7 @@ class LargeDemoDataSeeder extends Seeder
             'amount' => $this->money(5000000, 20000000),
             'reference_type' => null,
             'reference_id' => null,
-            'description' => 'Opening balance',
+            'description' => 'الرصيد الافتتاحي',
             'transaction_date' => $now->toDateString(),
             'created_by' => $storeOwnerId,
             'created_at' => $now,
@@ -143,7 +143,7 @@ class LargeDemoDataSeeder extends Seeder
     private function seedCategories(int $storeId, $now): array
     {
         $startId = $this->nextId('categories');
-        $names = ['Fertilizers', 'Pesticides', 'Seeds', 'Tools'];
+        $names = ['أسمدة', 'مبيدات', 'بذور', 'أدوات'];
         $rows = [];
 
         foreach ($names as $index => $name) {
@@ -165,7 +165,7 @@ class LargeDemoDataSeeder extends Seeder
     private function seedProducts(int $storeId, array $categoryIds, $now): array
     {
         $startId = $this->nextId('products');
-        $units = ['piece', 'kg', 'liter', 'box'];
+        $units = ['قطعة', 'كجم', 'لتر', 'صندوق'];
         $rows = [];
 
         for ($i = 0; $i < self::PRODUCTS_COUNT; $i++) {
@@ -177,7 +177,7 @@ class LargeDemoDataSeeder extends Seeder
                 'id' => $id,
                 'store_id' => $storeId,
                 'category_id' => $categoryIds[$i % count($categoryIds)],
-                'name' => 'Product ' . $id,
+                'name' => 'منتج ' . $id,
                 'sku' => 'SKU-' . str_pad((string) $id, 7, '0', STR_PAD_LEFT),
                 'unit' => $units[$i % count($units)],
                 'purchase_price' => $purchasePrice,
@@ -211,9 +211,9 @@ class LargeDemoDataSeeder extends Seeder
             $rows[] = [
                 'id' => $id,
                 'store_id' => $storeId,
-                'name' => 'Customer ' . $id,
+                'name' => 'عميل ' . $id,
                 'phone' => '010' . str_pad((string) ($id % 100000000), 8, '0', STR_PAD_LEFT),
-                'address' => 'Customer address ' . $id,
+                'address' => 'عنوان العميل ' . $id,
                 'notes' => null,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -243,9 +243,9 @@ class LargeDemoDataSeeder extends Seeder
             $rows[] = [
                 'id' => $id,
                 'store_id' => $storeId,
-                'name' => 'Supplier ' . $id,
+                'name' => 'مورد ' . $id,
                 'phone' => '011' . str_pad((string) ($id % 100000000), 8, '0', STR_PAD_LEFT),
-                'address' => 'Supplier address ' . $id,
+                'address' => 'عنوان المورد ' . $id,
                 'notes' => null,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -302,7 +302,7 @@ class LargeDemoDataSeeder extends Seeder
                     'id' => $nextItemId++,
                     'invoice_id' => $invoiceId,
                     'product_id' => $productId,
-                    'product_name' => 'Product ' . $productId,
+                    'product_name' => 'منتج ' . $productId,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'total_price' => $totalPrice,
@@ -376,7 +376,7 @@ class LargeDemoDataSeeder extends Seeder
                     'amount' => $paidAmount,
                     'reference_type' => 'payment',
                     'reference_id' => $invoiceId,
-                    'description' => 'Initial payment',
+                    'description' => 'دفعة أولية',
                     'created_by' => $createdBy,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -389,7 +389,7 @@ class LargeDemoDataSeeder extends Seeder
                     'amount' => $paidAmount,
                     'reference_type' => 'sales_invoice',
                     'reference_id' => $invoiceId,
-                    'description' => 'Initial payment for sales invoice',
+                    'description' => 'دفعة أولية لفاتورة بيع',
                     'transaction_date' => $now->toDateString(),
                     'created_by' => $createdBy,
                     'created_at' => $now,
@@ -443,7 +443,7 @@ class LargeDemoDataSeeder extends Seeder
                     'id' => $nextItemId++,
                     'invoice_id' => $invoiceId,
                     'product_id' => $productId,
-                    'product_name' => 'Product ' . $productId,
+                    'product_name' => 'منتج ' . $productId,
                     'ordered_quantity' => $orderedQuantity,
                     'received_quantity' => $receivedQuantity,
                     'unit_price' => $unitPrice,
@@ -518,7 +518,7 @@ class LargeDemoDataSeeder extends Seeder
                     'amount' => $paidAmount,
                     'reference_type' => 'payment',
                     'reference_id' => $invoiceId,
-                    'description' => 'Initial payment',
+                    'description' => 'دفعة أولية',
                     'created_by' => $createdBy,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -531,7 +531,7 @@ class LargeDemoDataSeeder extends Seeder
                     'amount' => $paidAmount,
                     'reference_type' => 'purchase_invoice',
                     'reference_id' => $invoiceId,
-                    'description' => 'Initial payment for purchase invoice',
+                    'description' => 'دفعة أولية لفاتورة شراء',
                     'transaction_date' => $now->toDateString(),
                     'created_by' => $createdBy,
                     'created_at' => $now,
@@ -587,7 +587,7 @@ class LargeDemoDataSeeder extends Seeder
                 'amount' => $amount,
                 'reference_type' => 'payment',
                 'reference_id' => $i,
-                'description' => 'Standalone payment',
+                'description' => 'دفعة مستقلة',
                 'created_by' => $createdBy,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -600,7 +600,7 @@ class LargeDemoDataSeeder extends Seeder
                 'amount' => $amount,
                 'reference_type' => 'payment',
                 'reference_id' => $i,
-                'description' => 'Standalone payment',
+                'description' => 'دفعة مستقلة',
                 'transaction_date' => $now->toDateString(),
                 'created_by' => $createdBy,
                 'created_at' => $now,
@@ -675,19 +675,22 @@ class LargeDemoDataSeeder extends Seeder
         $cashRows = [];
     }
 
-    private function quantity(int $min, int $max): string
+    private function quantity(int $min, int $max): int
     {
-        return number_format((float) mt_rand($min * 1000, $max * 1000) / 1000, 3, '.', '');
+        return mt_rand($min, $max);
     }
 
-    private function money(int $minCents, int $maxCents): string
+    private function money(int $minCents, int $maxCents): int
     {
-        return number_format((float) mt_rand($minCents, $maxCents) / 100, 2, '.', '');
+        $min = max(1, (int) ceil($minCents / 100));
+        $max = max($min, (int) floor($maxCents / 100));
+
+        return mt_rand($min, $max);
     }
 
-    private function formatMoney(float $amount): string
+    private function formatMoney(float $amount): int
     {
-        return number_format($amount, 2, '.', '');
+        return (int) round($amount);
     }
 
     private function nextId(string $table): int

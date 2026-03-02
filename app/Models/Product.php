@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CacheService;
 use App\Models\Traits\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -48,10 +49,7 @@ class Product extends Model
      */
     public function getCurrentStockAttribute(): float
     {
-        $in  = $this->stockMovements()->where('type', 'in')->sum('quantity');
-        $out = $this->stockMovements()->where('type', 'out')->sum('quantity');
-
-        return round($in - $out, 3);
+        return app(CacheService::class)->getStock((int) $this->store_id, (int) $this->id);
     }
 
     /**

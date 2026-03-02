@@ -28,7 +28,11 @@ class CashController extends Controller
     {
         $date   = $request->date ?? today()->toDateString();
         $perPage = $this->resolvePerPage($request, 20);
-        $fast = $request->boolean('fast');
+        $withTotal = $request->boolean('with_total', false);
+        $fast = $request->has('fast')
+            ? $request->boolean('fast')
+            : ! $withTotal;
+
         $report = $this->cashService->getDailyReport(
             Auth::user()->getStoreId(),
             $date,

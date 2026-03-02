@@ -19,6 +19,8 @@ use Illuminate\Validation\ValidationException;
 
 class PaymentService
 {
+    public function __construct(private CacheService $cacheService) {}
+
     /**
      * تحصيل نقدي من عميل (بدون فاتورة).
      */
@@ -58,6 +60,9 @@ class PaymentService
                 'transaction_date' => $dto->date ?? today(),
                 'created_by'       => $dto->createdBy,
             ]);
+
+            $this->cacheService->invalidateCustomerBalance($dto->partyId);
+            $this->cacheService->invalidateCashBalance($dto->storeId);
         });
     }
 
@@ -100,6 +105,9 @@ class PaymentService
                 'transaction_date' => $dto->date ?? today(),
                 'created_by'       => $dto->createdBy,
             ]);
+
+            $this->cacheService->invalidateSupplierBalance($dto->partyId);
+            $this->cacheService->invalidateCashBalance($dto->storeId);
         });
     }
 }

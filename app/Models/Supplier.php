@@ -1,6 +1,7 @@
 <?php
 namespace App\Models;
 
+use App\Services\CacheService;
 use App\Models\Traits\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -31,12 +32,6 @@ class Supplier extends Model
 
     public function getBalanceAttribute($value): float
     {
-        if ($value !== null) {
-            return round((float) $value, 2);
-        }
-
-        $debit  = $this->financialTransactions()->where('type', 'debit')->sum('amount');
-        $credit = $this->financialTransactions()->where('type', 'credit')->sum('amount');
-        return round($debit - $credit, 2);
+        return app(CacheService::class)->getSupplierBalance($this->id);
     }
 }

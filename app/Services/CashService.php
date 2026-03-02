@@ -8,6 +8,8 @@ use Illuminate\Validation\ValidationException;
 
 class CashService
 {
+    public function __construct(private CacheService $cacheService) {}
+
     
     public function setOpeningBalance(int $storeId, float $amount, int $createdBy): void
     {
@@ -29,8 +31,10 @@ class CashService
             'transaction_date' => today(),
             'created_by'       => $createdBy,
         ]);
+
+        $this->cacheService->invalidateCashBalance($storeId);
     }
-    public function getDailyReport(int $storeId, string $date, int $perPage = 20, bool $fast = false): array
+    public function getDailyReport(int $storeId, string $date, int $perPage = 20, bool $fast = true): array
     {
         $totals = DB::table('cash_transactions')
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'in' THEN amount ELSE 0 END), 0) as total_in")
@@ -64,12 +68,12 @@ class CashService
             'total_in'        => $totalIn,
             'total_out'       => $totalOut,
             'net'             => $totalIn - $totalOut,
-            'current_balance' => CashTransaction::getCurrentBalance($storeId),
+            'current_balance' => $this->cacheService->getCashBalance($storeId),
             'transactions'    => $transactions,
         ];
     }
     public function getCurrentBalance(int $storeId): float
     {
-        return CashTransaction::getCurrentBalance($storeId);
+        return $this->cacheService->getCashBalance($storeId);
     }
 }

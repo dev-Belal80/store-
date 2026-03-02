@@ -8,21 +8,28 @@ use App\Http\Requests\Api\V1\Product\StoreProductRequest;
 use App\Http\Requests\Api\V1\Product\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\Product;
+use App\Services\CacheService;
 use App\Services\ProductService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
-    public function __construct(private ProductService $productService) {}
+    public function __construct(
+        private ProductService $productService,
+        private CacheService $cacheService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
-        $perPage = $this->resolvePerPage($request, 10);
+        $perPage = $this->resolvePerPage($request, 10, 10);
+        $withTotal = $request->boolean('with_total', false);
+        $storeId = Auth::user()->getStoreId();
 
-        $products = Product::query()
+        $productsQuery = Product::query()
             ->with('category:id,name')
             ->when(
                 $request->filled('search'),
@@ -32,8 +39,11 @@ class ProductController extends Controller
                 })
             )
             ->when($request->filled('category_id'), fn($q) => $q->where('category_id', $request->category_id))
-            ->orderBy('name')
-            ->paginate($perPage)
+            ->orderBy('name');
+
+        $products = ($withTotal
+            ? $productsQuery->paginate($perPage)
+            : $productsQuery->simplePaginate($perPage))
             ->withQueryString();
 
         $productIds = $products->getCollection()->pluck('id')->all();
@@ -44,8 +54,8 @@ class ProductController extends Controller
                 ->selectRaw('product_id')
                 ->selectRaw("COALESCE(SUM(CASE WHEN type = 'in' THEN quantity ELSE 0 END), 0) AS stock_in")
                 ->selectRaw("COALESCE(SUM(CASE WHEN type = 'out' THEN quantity ELSE 0 END), 0) AS stock_out")
-                ->where('store_id', Auth::user()->getStoreId())
-                ->whereIn('product_id', $productIds)
+                ->where('store_id', $storeId)
+                ->whereIntegerInRaw('product_id', $productIds)
                 ->groupBy('product_id')
                 ->get()
                 ->keyBy('product_id');
@@ -71,7 +81,10 @@ class ProductController extends Controller
             })
         );
 
-        return response()->json($products);
+        $payload = $products->toArray();
+        $payload['products_count'] = $this->cacheService->getProductsCount($storeId);
+
+        return response()->json($payload);
     }
 
     public function store(StoreProductRequest $request): JsonResponse
@@ -109,9 +122,31 @@ class ProductController extends Controller
     public function categories(Request $request): JsonResponse
     {
         $perPage = $this->resolvePerPage($request, 25);
+        $storeId = Auth::user()->getStoreId();
+
+        if (! $request->filled('search')) {
+            $allCategories = collect($this->cacheService->getCategories($storeId));
+            $page = max((int) $request->query('page', 1), 1);
+            $total = $allCategories->count();
+            $items = $allCategories->forPage($page, $perPage)->values();
+
+            $paginator = new LengthAwarePaginator(
+                items: $items,
+                total: $total,
+                perPage: $perPage,
+                currentPage: $page,
+                options: [
+                    'path' => $request->url(),
+                    'query' => $request->query(),
+                ],
+            );
+
+            return response()->json($paginator);
+        }
 
         $categories = Category::query()
             ->select(['id', 'store_id', 'name', 'products_count', 'created_at', 'updated_at'])
+            ->withCount(['products as products_count' => fn($q) => $q->whereNull('products.deleted_at')])
             ->when($request->filled('search'), fn($q) => $q->where('name', 'like', '%' . $request->search . '%'))
             ->orderBy('name')
             ->paginate($perPage)
@@ -120,12 +155,25 @@ class ProductController extends Controller
         return response()->json($categories);
     }
 
+    public function categoriesSummary(): JsonResponse
+    {
+        $storeId = Auth::user()->getStoreId();
+
+        return response()->json([
+            'categories' => $this->cacheService->getCategories($storeId),
+        ]);
+    }
+
     public function storeCategory(StoreCategoryRequest $request): JsonResponse
     {
+        $storeId = Auth::user()->getStoreId();
+
         $category = Category::create([
-            'store_id' => Auth::user()->getStoreId(),
+            'store_id' => $storeId,
             'name'     => $request->name,
         ]);
+
+        $this->cacheService->invalidateCategories($storeId);
 
         return response()->json([
             'message'  => 'تم إضافة التصنيف.',
@@ -135,7 +183,10 @@ class ProductController extends Controller
 
     public function destroyCategory(int $id): JsonResponse
     {
-        $this->productService->deleteCategory($id, Auth::user()->getStoreId());
+        $storeId = Auth::user()->getStoreId();
+
+        $this->productService->deleteCategory($id, $storeId);
+        $this->cacheService->invalidateCategories($storeId);
 
         return response()->json(['message' => 'تم حذف التصنيف.']);
     }

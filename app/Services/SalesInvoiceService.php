@@ -19,6 +19,7 @@ use Illuminate\Validation\ValidationException;
 
 class SalesInvoiceService
 {
+    public function __construct(private CacheService $cacheService) {}
 
     public function create(CreateSalesInvoiceDTO $dto): SalesInvoice
     {
@@ -107,6 +108,15 @@ class SalesInvoiceService
                     'description'    => "دفعة نقدية - فاتورة {$invoice->invoice_number}",
                     'created_by'     => $dto->createdBy,
                 ]);
+            }
+
+            $this->cacheService->invalidateStock(
+                storeId: $dto->storeId,
+                productIds: array_map(fn($item) => $item->productId, $dto->items),
+            );
+            $this->cacheService->invalidateCustomerBalance($dto->customerId);
+            if ($paid > 0) {
+                $this->cacheService->invalidateCashBalance($dto->storeId);
             }
 
             return $invoice->load('items', 'customer');
@@ -199,6 +209,15 @@ class SalesInvoiceService
                     'description'    => "رصيد دائن من إلغاء فاتورة {$invoice->invoice_number}",
                     'created_by'     => $dto->cancelledBy,
                 ]);
+            }
+
+            $this->cacheService->invalidateStock(
+                storeId: $dto->storeId,
+                productIds: $invoice->items->pluck('product_id')->all(),
+            );
+            $this->cacheService->invalidateCustomerBalance((int) $invoice->customer_id);
+            if ($invoice->paid_amount > 0) {
+                $this->cacheService->invalidateCashBalance($dto->storeId);
             }
 
             return $invoice->load('items', 'customer');

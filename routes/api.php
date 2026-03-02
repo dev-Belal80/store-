@@ -55,6 +55,7 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
 
         // ── التصنيفات ─────────────────────────────────────────────
         Route::get('/categories',                     [ProductController::class, 'categories']);
+        Route::get('/categories/summary',             [ProductController::class, 'categoriesSummary']);
         Route::post('/categories',                    [ProductController::class, 'storeCategory']);
         Route::delete('/categories/{id}',             [ProductController::class, 'destroyCategory']);
 

@@ -19,6 +19,8 @@ use Illuminate\Validation\ValidationException;
 
 class PurchaseInvoiceService
 {
+    public function __construct(private CacheService $cacheService) {}
+
     public function create(CreatePurchaseInvoiceDTO $dto): PurchaseInvoice
     {
         return DB::transaction(function () use ($dto) {
@@ -110,6 +112,15 @@ class PurchaseInvoiceService
                 ]);
             }
 
+            $this->cacheService->invalidateStock(
+                storeId: $dto->storeId,
+                productIds: array_map(fn($item) => $item->productId, $dto->items),
+            );
+            $this->cacheService->invalidateSupplierBalance($dto->supplierId);
+            if ($paid > 0) {
+                $this->cacheService->invalidateCashBalance($dto->storeId);
+            }
+
             return $invoice->load('items', 'supplier');
         });
     }
@@ -189,6 +200,15 @@ class PurchaseInvoiceService
                     'description'    => "عكس دفعة - إلغاء فاتورة {$invoice->invoice_number}",
                     'created_by'     => $dto->cancelledBy,
                 ]);
+            }
+
+            $this->cacheService->invalidateStock(
+                storeId: $dto->storeId,
+                productIds: $invoice->items->pluck('product_id')->all(),
+            );
+            $this->cacheService->invalidateSupplierBalance((int) $invoice->supplier_id);
+            if ($invoice->paid_amount > 0) {
+                $this->cacheService->invalidateCashBalance($dto->storeId);
             }
 
             return $invoice->load('items', 'supplier');
