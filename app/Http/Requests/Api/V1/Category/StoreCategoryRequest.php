@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1\Category;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCategoryRequest extends FormRequest
 {
@@ -21,8 +22,28 @@ class StoreCategoryRequest extends FormRequest
      */
     public function rules(): array
     {
+        $storeId = $this->user()?->getStoreId();
+        $categoryParam = $this->route('category');
+        $categoryId = is_object($categoryParam) ? $categoryParam->id : $categoryParam;
+
         return [
-            'name' => ['required', 'string', 'max:255', 'unique:categories,name'],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('categories', 'name')
+                    ->where(fn ($query) => $query->where('store_id', $storeId))
+                    ->ignore($categoryId),
+            ],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'اسم التصنيف مطلوب.',
+            'name.unique' => 'هذا التصنيف موجود بالفعل في متجرك.',
+            'name.max' => 'اسم التصنيف طويل جداً.',
         ];
     }
 }
