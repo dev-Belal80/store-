@@ -3,6 +3,7 @@ namespace App\Models;
 
 use App\Models\Traits\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -25,6 +26,11 @@ class Category extends Model
         return $this->hasMany(Product::class);
     }
 
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
+    }
+
     /** هل يمكن حذف هذا التصنيف؟ */
     public function canBeDeleted(): bool
     {
@@ -33,6 +39,6 @@ class Category extends Model
 
     public function activeProductsCount(): int
     {
-        return $this->products()->count();
+        return $this->products()->where('is_active', true)->count();
     }
 }

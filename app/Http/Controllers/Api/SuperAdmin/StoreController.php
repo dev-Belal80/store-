@@ -27,7 +27,8 @@ class StoreController extends Controller
             ->when($request->filled('search'), fn($q) => $q->where(function ($query) use ($request) {
                 $query->where('name', 'like', '%' . $request->search . '%')
                       ->orWhere('owner_name', 'like', '%' . $request->search . '%')
-                      ->orWhere('email', 'like', '%' . $request->search . '%');
+                      ->orWhere('email', 'like', '%' . $request->search . '%')
+                      ->orWhere('phone', 'like', '%' . $request->search . '%');
             }))
             ->orderByDesc('created_at')
             ->paginate($perPage)
@@ -35,6 +36,7 @@ class StoreController extends Controller
                 'id' => $store->id,
                 'name' => $store->name,
                 'email' => $store->email,
+                'phone' => $store->phone,
                 'owner_name' => $store->owner_name,
                 'is_active' => $store->is_active,
                 'created_at' => $store->created_at?->format('Y-m-d'),

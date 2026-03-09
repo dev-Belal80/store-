@@ -7,13 +7,12 @@ use App\Http\Requests\Api\V1\Category\StoreCategoryRequest;
 use App\Http\Requests\Api\V1\Product\StoreProductRequest;
 use App\Http\Requests\Api\V1\Product\StoreVariantRequest;
 use App\Http\Requests\Api\V1\Product\UpdateProductRequest;
-use App\Models\Category;
 use App\Models\Product;
 use App\Services\CacheService;
+use App\Services\CategoryService;
 use App\Services\ProductService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 
 class ProductController extends Controller
@@ -21,6 +20,7 @@ class ProductController extends Controller
     public function __construct(
         private ProductService $productService,
         private CacheService $cacheService,
+        private CategoryService $categoryService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -150,42 +150,14 @@ class ProductController extends Controller
         ]);
     }
 
-    // ── Categories ───────────────────────────────────────────────
-
-    public function categories(Request $request): JsonResponse
+    // Backward compatibility for stale cached routes on older deployments.
+    public function categories(): JsonResponse
     {
-        $perPage = $this->resolvePerPage($request, 25);
         $storeId = Auth::user()->getStoreId();
 
-        if (! $request->filled('search')) {
-            $allCategories = collect($this->cacheService->getCategories($storeId));
-            $page = max((int) $request->query('page', 1), 1);
-            $total = $allCategories->count();
-            $items = $allCategories->forPage($page, $perPage)->values();
-
-            $paginator = new LengthAwarePaginator(
-                items: $items,
-                total: $total,
-                perPage: $perPage,
-                currentPage: $page,
-                options: [
-                    'path' => $request->url(),
-                    'query' => $request->query(),
-                ],
-            );
-
-            return response()->json($paginator);
-        }
-
-        $categories = Category::query()
-            ->select(['id', 'store_id', 'name', 'products_count', 'created_at', 'updated_at'])
-            ->withCount(['products as products_count' => fn($q) => $q->whereNull('products.deleted_at')])
-            ->when($request->filled('search'), fn($q) => $q->where('name', 'like', '%' . $request->search . '%'))
-            ->orderBy('name')
-            ->paginate($perPage)
-            ->withQueryString();
-
-        return response()->json($categories);
+        return response()->json([
+            'data' => $this->categoryService->list($storeId),
+        ]);
     }
 
     public function categoriesSummary(): JsonResponse
@@ -200,27 +172,24 @@ class ProductController extends Controller
     public function storeCategory(StoreCategoryRequest $request): JsonResponse
     {
         $storeId = Auth::user()->getStoreId();
-
-        $category = Category::create([
-            'store_id' => $storeId,
-            'name'     => $request->name,
-        ]);
-
-        $this->cacheService->invalidateCategories($storeId);
+        $category = $this->categoryService->create($request->validated(), $storeId);
 
         return response()->json([
-            'message'  => 'تم إضافة التصنيف.',
-            'category' => $category,
+            'message' => 'تم إنشاء التصنيف بنجاح.',
+            'data' => [
+                'id' => $category->id,
+                'name' => $category->name,
+            ],
         ], 201);
     }
 
     public function destroyCategory(int $id): JsonResponse
     {
         $storeId = Auth::user()->getStoreId();
+        $category = $this->categoryService->findForStore($id, $storeId);
+        $this->categoryService->delete($category);
 
-        $this->productService->deleteCategory($id, $storeId);
-        $this->cacheService->invalidateCategories($storeId);
-
-        return response()->json(['message' => 'تم حذف التصنيف.']);
+        return response()->json(['message' => 'تم حذف التصنيف بنجاح.']);
     }
+
 }

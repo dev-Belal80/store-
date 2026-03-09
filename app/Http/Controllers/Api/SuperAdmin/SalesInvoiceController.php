@@ -73,10 +73,12 @@ class SalesInvoiceController extends Controller
         );
 
         $invoice = $this->invoiceService->create($dto);
+        $deficits = $this->invoiceService->getInvoiceDeficits($invoice);
 
         return response()->json([
             'message' => 'تم إنشاء فاتورة البيع بنجاح.',
             'invoice' => $invoice,
+            'deficits' => $deficits,
         ], 201);
     }
 
