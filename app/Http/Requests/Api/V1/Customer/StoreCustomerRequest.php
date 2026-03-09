@@ -23,7 +23,7 @@ class StoreCustomerRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20',
+            'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:255',
         ];
     }
@@ -33,7 +33,6 @@ class StoreCustomerRequest extends FormRequest
             'name.required' => 'يرجى إدخال اسم العميل.',
             'name.string' => 'يجب أن يكون اسم العميل نصًا.',
             'name.max' => 'يجب أن يكون اسم العميل أقل من 255 حرفًا.',
-            'phone.required' => 'يرجى إدخال رقم الهاتف.',
             'phone.string' => 'يجب أن يكون رقم الهاتف نصًا.',
             'phone.max' => 'يجب أن يكون رقم الهاتف أقل من 20 حرفًا.',
             'address.string' => 'يجب أن يكون العنوان نصًا.',
