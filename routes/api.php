@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\StoreSettingsController;
+use App\Http\Controllers\Api\SuperAdmin\CategoryController;
 use App\Http\Controllers\Api\SuperAdmin\CashController;
 use App\Http\Controllers\Api\SuperAdmin\CustomerController;
 use App\Http\Controllers\Api\SuperAdmin\InventoryController;
@@ -63,10 +64,8 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
         Route::get('/suppliers/{id}/statement',       [SupplierController::class, 'statement']);
 
         // ── التصنيفات ─────────────────────────────────────────────
-        Route::get('/categories',                     [ProductController::class, 'categories']);
-        Route::get('/categories/summary',             [ProductController::class, 'categoriesSummary']);
-        Route::post('/categories',                    [ProductController::class, 'storeCategory']);
-        Route::delete('/categories/{id}',             [ProductController::class, 'destroyCategory']);
+        Route::apiResource('categories', CategoryController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
 
         // ── المنتجات ──────────────────────────────────────────────
         Route::get('/products',                       [ProductController::class, 'index']);
