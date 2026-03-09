@@ -24,18 +24,14 @@ class SalesInvoiceService
     public function create(CreateSalesInvoiceDTO $dto): SalesInvoice
     {
         return DB::transaction(function () use ($dto) {
-
-            // ── Step 1: التحقق من المخزون لكل منتج ───────────────
-            $this->validateStock($dto);
-
-            // ── Step 2: حساب الإجمالي ─────────────────────────────
+            // ── Step 1: حساب الإجمالي ─────────────────────────────
             $total = $this->calculateTotal($dto->items);
             $discount = max($dto->discountAmount, 0);
             $net = max($total - $discount, 0);
             $paid = min($dto->paidAmount, $net);
             $remaining = $net - $paid;
 
-            // ── Step 3: حفظ الفاتورة ──────────────────────────────
+            // ── Step 2: حفظ الفاتورة ──────────────────────────────
             $invoice = SalesInvoice::create([
                 'store_id'         => $dto->storeId,
                 'invoice_number'   => $dto->invoiceNumber,
@@ -50,7 +46,7 @@ class SalesInvoiceService
                 'created_by'       => $dto->createdBy,
             ]);
 
-            // ── Step 4: حفظ بنود الفاتورة ─────────────────────────
+            // ── Step 3: حفظ بنود الفاتورة ─────────────────────────
             $affectedProductIds = [];
             foreach ($dto->items as $item) {
                 $variant = ProductVariant::where('store_id', $dto->storeId)
@@ -70,7 +66,7 @@ class SalesInvoiceService
                     'total_price'  => round($item->quantity * $item->unitPrice, 2),
                 ]);
 
-                // ── Step 5: خصم المخزون ───────────────────────────
+                // ── Step 4: خصم المخزون ───────────────────────────
                 StockMovement::create([
                     'store_id'       => $dto->storeId,
                     'product_id'     => $variant->product_id,
@@ -84,7 +80,7 @@ class SalesInvoiceService
                 ]);
             }
 
-            // ── Step 6: قيد مالي مدين على العميل ─────────────────
+            // ── Step 5: قيد مالي مدين على العميل ─────────────────
             FinancialTransaction::create([
                 'store_id'       => $dto->storeId,
                 'party_type'     => PartyType::CUSTOMER,
@@ -97,7 +93,7 @@ class SalesInvoiceService
                 'created_by'     => $dto->createdBy,
             ]);
 
-            // ── Step 7: قيد نقدي إذا في مدفوع ────────────────────
+            // ── Step 6: قيد نقدي إذا في مدفوع ────────────────────
             if ($paid > 0) {
                 $this->recordCashIn(
                     storeId: $dto->storeId,
@@ -134,6 +130,29 @@ class SalesInvoiceService
 
             return $invoice->load('items.variant.product.category', 'customer');
         });
+    }
+
+    public function getInvoiceDeficits(SalesInvoice $invoice): array
+    {
+        return $invoice->items
+            ->map(function (SalesInvoiceItem $item) {
+                $variant = ProductVariant::with('product:id,name')
+                    ->find($item->variant_id);
+
+                if (! $variant || ! $variant->hasDeficit()) {
+                    return null;
+                }
+
+                return [
+                    'variant_id' => $variant->id,
+                    'product_name' => $variant->product?->name,
+                    'variant_name' => $variant->name,
+                    'deficit' => $variant->getDeficit(),
+                ];
+            })
+            ->filter()
+            ->values()
+            ->toArray();
     }
 
     public function cancel(CancelInvoiceDTO $dto): SalesInvoice
@@ -240,24 +259,6 @@ class SalesInvoiceService
     }
 
     // ── Private Helpers ──────────────────────────────────────────
-
-    /**
-     * التحقق من توافر المخزون لكل منتج في الفاتورة.
-     */
-    private function validateStock(CreateSalesInvoiceDTO $dto): void
-    {
-        foreach ($dto->items as $item) {
-            $variant = ProductVariant::where('store_id', $dto->storeId)
-                ->with('product:id,name')
-                ->findOrFail($item->variantId);
-
-            if (! $variant->canSell($item->quantity)) {
-                throw ValidationException::withMessages([
-                    'stock' => "المخزون غير كافٍ للمنتج: {$variant->product?->name} — {$variant->name}",
-                ]);
-            }
-        }
-    }
 
     private function calculateTotal(array $items): float
     {

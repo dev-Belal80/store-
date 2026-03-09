@@ -77,6 +77,7 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
         Route::delete('/products/{productId}/variants/{variantId}', [ProductController::class, 'destroyVariant']);
         Route::get('/products/dropdown',              [ProductController::class, 'dropdown']);
         Route::get('/inventory',                      [InventoryController::class, 'inventory']);
+        Route::get('/inventory/deficits',             [InventoryController::class, 'deficits']);
 
         // ── فواتير البيع ──────────────────────────────────────────
         Route::get('/sales-invoices',                 [SalesInvoiceController::class, 'index']);

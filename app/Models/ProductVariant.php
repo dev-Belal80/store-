@@ -67,4 +67,14 @@ class ProductVariant extends Model
     {
         return $this->current_stock >= $quantity;
     }
+
+    public function hasDeficit(): bool
+    {
+        return $this->current_stock < 0;
+    }
+
+    public function getDeficit(): float
+    {
+        return abs(min($this->current_stock, 0));
+    }
 }

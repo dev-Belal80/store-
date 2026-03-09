@@ -65,4 +65,31 @@ class InventoryController extends Controller
 
         return response()->json($variants);
     }
+
+    // GET /api/store/inventory/deficits
+    public function deficits(): JsonResponse
+    {
+        $storeId = Auth::user()->getStoreId();
+
+        $deficits = ProductVariant::query()
+            ->with(['product.category'])
+            ->where('store_id', $storeId)
+            ->where('is_active', true)
+            ->get()
+            ->filter(fn (ProductVariant $variant) => $variant->hasDeficit())
+            ->map(fn (ProductVariant $variant) => [
+                'variant_id' => $variant->id,
+                'product_name' => $variant->product?->name,
+                'variant_name' => $variant->name,
+                'category' => $variant->product?->category?->name ?? '—',
+                'deficit' => $variant->getDeficit(),
+                'needed_qty' => $variant->getDeficit(),
+            ])
+            ->values();
+
+        return response()->json([
+            'data' => $deficits,
+            'total_deficit_items' => $deficits->count(),
+        ]);
+    }
 }
