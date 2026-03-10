@@ -79,16 +79,8 @@ class CategoryService
     // LIST
     public function list(int $storeId): array
     {
-        return Category::withoutGlobalScopes()
-            ->where('store_id', $storeId)
-            ->whereNull('deleted_at')
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Category $category) => [
-                'id' => $category->id,
-                'name' => $category->name,
-            ])
-            ->toArray();
+        // Use computed per-store counts from cache-backed query.
+        return $this->cacheService->getCategories($storeId);
     }
 
     // DELETE

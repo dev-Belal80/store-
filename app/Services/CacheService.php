@@ -153,6 +153,10 @@ class CacheService
                 ->where('store_id', $storeId)
                 ->where('is_active', true)
                 ->whereNull('deleted_at')
+                ->whereHas('product', fn ($query) => $query
+                    ->withoutGlobalScopes()
+                    ->where('store_id', $storeId)
+                    ->whereNull('deleted_at'))
                 ->with(['product:id,name,category_id', 'product.category:id,name'])
                 ->orderBy('product_id')
                 ->orderBy('name')
