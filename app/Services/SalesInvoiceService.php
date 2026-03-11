@@ -50,8 +50,18 @@ class SalesInvoiceService
             $affectedProductIds = [];
             foreach ($dto->items as $item) {
                 $variant = ProductVariant::where('store_id', $dto->storeId)
-                    ->with('product:id,name')
+                    ->with(['product' => fn ($query) => $query
+                        ->withoutGlobalScopes()
+                        ->withTrashed()
+                        ->select(['id', 'store_id', 'name'])])
                     ->findOrFail($item->variantId);
+
+                $productName = $variant->product?->name;
+                if (blank($productName)) {
+                    throw ValidationException::withMessages([
+                        'items' => 'لا يمكن إنشاء الفاتورة لأن بيانات المنتج المرتبط بأحد الأحجام غير مكتملة.',
+                    ]);
+                }
 
                 $affectedProductIds[] = (int) $variant->product_id;
 
@@ -59,7 +69,7 @@ class SalesInvoiceService
                     'invoice_id'   => $invoice->id,
                     'product_id'   => $variant->product_id,
                     'variant_id'   => $variant->id,
-                    'product_name' => $variant->product?->name,
+                    'product_name' => $productName,
                     'variant_name' => $variant->name,
                     'quantity'     => $item->quantity,
                     'unit_price'   => $item->unitPrice,
@@ -136,16 +146,22 @@ class SalesInvoiceService
     {
         return $invoice->items
             ->map(function (SalesInvoiceItem $item) {
-                $variant = ProductVariant::with('product:id,name')
+                $variant = ProductVariant::withoutGlobalScopes()
+                    ->with(['product' => fn ($query) => $query
+                        ->withoutGlobalScopes()
+                        ->withTrashed()
+                        ->select(['id', 'name'])])
                     ->find($item->variant_id);
 
                 if (! $variant || ! $variant->hasDeficit()) {
                     return null;
                 }
 
+                $productName = $variant->product?->name ?? $item->product_name;
+
                 return [
                     'variant_id' => $variant->id,
-                    'product_name' => $variant->product?->name,
+                    'product_name' => $productName,
                     'variant_name' => $variant->name,
                     'deficit' => $variant->getDeficit(),
                 ];

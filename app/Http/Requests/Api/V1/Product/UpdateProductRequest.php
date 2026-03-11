@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1\Product;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateProductRequest extends FormRequest
 {
@@ -21,8 +22,16 @@ class UpdateProductRequest extends FormRequest
      */
     public function rules(): array
     {
+        $storeId = $this->user()?->getStoreId();
+
         return [
-            'category_id' => ['required', 'exists:categories,id'],
+            'category_id' => [
+                'required',
+                Rule::exists('categories', 'id')
+                    ->where(fn ($query) => $query
+                        ->where('store_id', $storeId)
+                        ->whereNull('deleted_at')),
+            ],
             'name' => ['required', 'string', 'max:255'],
         ];
     }

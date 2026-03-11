@@ -85,7 +85,11 @@ class ProductController extends Controller
 
     public function update(UpdateProductRequest $request, int $id): JsonResponse
     {
-        $product = $this->productService->update($id, $request->validated());
+        $product = $this->productService->update(
+            $id,
+            $request->validated(),
+            Auth::user()->getStoreId()
+        );
 
         return response()->json([
             'message' => 'تم تعديل المنتج.',
@@ -95,7 +99,7 @@ class ProductController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
-        $this->productService->delete($id);
+        $this->productService->delete($id, Auth::user()->getStoreId());
 
         return response()->json(['message' => 'تم حذف المنتج.']);
     }

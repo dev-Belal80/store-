@@ -15,6 +15,10 @@ class ProductService
     public function create(array $data, int $storeId): Product
     {
         return DB::transaction(function () use ($data, $storeId) {
+            Category::where('store_id', $storeId)
+                ->whereKey($data['category_id'])
+                ->findOrFail($data['category_id']);
+
             $product = Product::create([
                 'store_id'    => $storeId,
                 'category_id' => $data['category_id'],
@@ -88,12 +92,15 @@ class ProductService
         $this->cacheService->invalidateProductsDropdown($storeId);
     }
 
-    public function update(int $id, array $data): Product
+    public function update(int $id, array $data, int $storeId): Product
     {
-        return DB::transaction(function () use ($id, $data) {
-            $product = Product::findOrFail($id);
-            $storeId = (int) $product->store_id;
+        return DB::transaction(function () use ($id, $data, $storeId) {
+            $product = Product::where('store_id', $storeId)->findOrFail($id);
             $oldCategoryId = (int) $product->category_id;
+
+            Category::where('store_id', $storeId)
+                ->whereKey($data['category_id'])
+                ->findOrFail($data['category_id']);
 
             $product->update($data);
 
@@ -111,11 +118,10 @@ class ProductService
         });
     }
 
-    public function delete(int $id): void
+    public function delete(int $id, int $storeId): void
     {
-        DB::transaction(function () use ($id) {
-            $product = Product::findOrFail($id);
-            $storeId = (int) $product->store_id;
+        DB::transaction(function () use ($id, $storeId) {
+            $product = Product::where('store_id', $storeId)->findOrFail($id);
 
             Category::query()
                 ->whereKey($product->category_id)

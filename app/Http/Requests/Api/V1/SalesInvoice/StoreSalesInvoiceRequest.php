@@ -32,12 +32,25 @@ class StoreSalesInvoiceRequest extends FormRequest
                 Rule::unique('sales_invoices', 'invoice_number')
                     ->where(fn($query) => $query->where('store_id', $storeId)),
             ],
-            'customer_id'                    => ['required', 'exists:customers,id'],
+            'customer_id'                    => [
+                'required',
+                Rule::exists('customers', 'id')
+                    ->where(fn ($query) => $query
+                        ->where('store_id', $storeId)
+                        ->whereNull('deleted_at')),
+            ],
             'paid_amount'                    => ['required', 'numeric', 'min:0'],
             'discount_amount'                => ['nullable', 'numeric', 'min:0'],
             'notes'                          => ['nullable', 'string'],
             'items'                          => ['required', 'array', 'min:1'],
-            'items.*.variant_id'             => ['required', 'exists:product_variants,id'],
+            'items.*.variant_id'             => [
+                'required',
+                Rule::exists('product_variants', 'id')
+                    ->where(fn ($query) => $query
+                        ->where('store_id', $storeId)
+                        ->where('is_active', true)
+                        ->whereNull('deleted_at')),
+            ],
             'items.*.quantity'               => ['required', 'numeric', 'min:1'],
             'items.*.unit_price'             => ['required', 'numeric', 'min:0'],
         ];
