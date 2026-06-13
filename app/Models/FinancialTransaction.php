@@ -20,6 +20,7 @@ class FinancialTransaction extends Model
         'reference_type',
         'reference_id',
         'description',
+        'receipt_number',
         'created_by',
     ];
 

@@ -22,10 +22,11 @@ class RecordPaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-           'party_id' => ['required', 'integer'],
-            'amount'   => ['required', 'numeric', 'min:0.01'],
-            'notes'    => ['nullable', 'string'],
-            'date'     => ['nullable', 'date'],
+           'party_id'       => ['required', 'integer'],
+            'amount'         => ['required', 'numeric', 'min:0.01'],
+            'notes'          => ['nullable', 'string'],
+            'date'           => ['nullable', 'date'],
+            'receipt_number' => ['nullable', 'string', 'max:100'],
         ];
     }
     public function messages(): array

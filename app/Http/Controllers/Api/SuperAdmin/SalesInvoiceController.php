@@ -37,6 +37,7 @@ class SalesInvoiceController extends Controller
                 'remaining_amount',
                 'status',
                 'notes',
+                'sales_rep_name',
                 'created_by',
                 'created_at',
             ])
@@ -127,6 +128,7 @@ class SalesInvoiceController extends Controller
             'status'           => $invoice->status,
             'customer'         => $invoice->customer,
             'notes'            => $invoice->notes,
+            'sales_rep_name'   => $invoice->sales_rep_name,
             'created_by'       => $invoice->createdBy,
             'created_at'       => $invoice->created_at,
             'items'            => $items,
@@ -175,5 +177,80 @@ class SalesInvoiceController extends Controller
             'customer_id' => $invoice->customer_id,
             'items' => $items,
         ]);
+    }
+
+    public function repsStats(): JsonResponse
+    {
+        $storeId = Auth::user()->getStoreId();
+
+        $reps = SalesInvoice::where('store_id', $storeId)
+            ->whereNotNull('sales_rep_name')
+            ->where('sales_rep_name', '<>', '')
+            ->select('sales_rep_name')
+            ->distinct()
+            ->pluck('sales_rep_name');
+
+        $stats = [];
+        foreach ($reps as $rep) {
+            // Unique customers
+            $customersCount = SalesInvoice::where('store_id', $storeId)
+                ->where('sales_rep_name', $rep)
+                ->distinct()
+                ->count('customer_id');
+
+            // Sales amount (net_amount of confirmed invoices)
+            $salesAmount = (float) SalesInvoice::where('store_id', $storeId)
+                ->where('sales_rep_name', $rep)
+                ->confirmed()
+                ->sum('net_amount');
+
+            // Paid amount from invoices (collected at sale time)
+            $invoiceCollected = (float) SalesInvoice::where('store_id', $storeId)
+                ->where('sales_rep_name', $rep)
+                ->confirmed()
+                ->sum('paid_amount');
+
+            // Paid amount from direct payments (credits) by customers who belong to this rep
+            // A customer belongs to this rep if their latest sales invoice was dealt with by this rep.
+            $customerIds = \Illuminate\Support\Facades\DB::table('sales_invoices as si1')
+                ->select('si1.customer_id')
+                ->where('si1.store_id', $storeId)
+                ->where('si1.sales_rep_name', $rep)
+                ->whereNotExists(function ($query) use ($storeId) {
+                    $query->select(\Illuminate\Support\Facades\DB::raw(1))
+                        ->from('sales_invoices as si2')
+                        ->whereColumn('si2.customer_id', 'si1.customer_id')
+                        ->where('si2.store_id', $storeId)
+                        ->where('si2.created_at', '>', 'si1.created_at');
+                })
+                ->pluck('customer_id')
+                ->toArray();
+
+            $receiptCollected = 0.0;
+            if (!empty($customerIds)) {
+                $receiptCollected = (float) \Illuminate\Support\Facades\DB::table('financial_transactions')
+                    ->where('store_id', $storeId)
+                    ->where('party_type', 'customer')
+                    ->whereIn('party_id', $customerIds)
+                    ->where('type', 'credit')
+                    ->where('reference_type', 'direct_payment')
+                    ->sum('amount');
+            }
+
+            $totalCollected = $invoiceCollected + $receiptCollected;
+
+            $stats[] = [
+                'sales_rep_name'   => $rep,
+                'customers_count'  => $customersCount,
+                'sales_amount'     => $salesAmount,
+                'collected_amount' => $totalCollected,
+                'invoice_collected'=> $invoiceCollected,
+                'receipt_collected'=> $receiptCollected,
+            ];
+        }
+
+        usort($stats, fn($a, $b) => $b['sales_amount'] <=> $a['sales_amount']);
+
+        return response()->json($stats);
     }
 }

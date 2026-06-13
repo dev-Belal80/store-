@@ -84,6 +84,7 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
         // ── فواتير البيع ──────────────────────────────────────────
         Route::get('/sales-invoices',                 [SalesInvoiceController::class, 'index']);
         Route::post('/sales-invoices',                [SalesInvoiceController::class, 'store']);
+        Route::get('/sales-invoices/reps-stats',      [SalesInvoiceController::class, 'repsStats']);
         Route::get('/sales-invoices/{id}',            [SalesInvoiceController::class, 'show']);
         Route::get('/sales-invoices/{id}/items',      [SalesInvoiceController::class, 'getItems']);
         Route::post('/sales-invoices/{id}/cancel',    [SalesInvoiceController::class, 'cancel']);

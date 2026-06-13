@@ -14,6 +14,7 @@ final class CreateSalesInvoiceDTO
         public readonly float  $paidAmount,
         public readonly string $createdBy,
         public readonly ?string $notes = null,
+        public readonly ?string $salesRepName = null, // اسم المهندس/المندوب
     ) {}
 
     public static function fromArray(array $data, string $storeId, string $createdBy): self
@@ -36,6 +37,7 @@ final class CreateSalesInvoiceDTO
             paidAmount: (float) ($data['paid_amount'] ?? 0),
             createdBy: $createdBy,
             notes: $data['notes'] ?? null,
+            salesRepName: $data['sales_rep_name'] ?? null,
         );
     }
 }

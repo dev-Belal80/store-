@@ -46,6 +46,7 @@ class PaymentService
                 'reference_type' => 'direct_payment',
                 'reference_id'   => 0,
                 'description'    => $dto->notes ?? "تحصيل نقدي من العميل: {$customer->name}",
+                'receipt_number' => $dto->receiptNumber,
                 'created_by'     => $dto->createdBy,
             ]);
 

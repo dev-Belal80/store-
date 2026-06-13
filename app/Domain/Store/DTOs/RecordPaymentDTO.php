@@ -9,16 +9,18 @@ final class RecordPaymentDTO
         public readonly string  $createdBy,
         public readonly ?string $notes = null,
         public readonly ?string $date  = null, // null = today
+        public readonly ?string $receiptNumber = null, // رقم فاتورة التحصيل
     ) {}
       public static function fromArray(array $data, string $storeId, string $createdBy): self
     {
         return new self(
-            storeId:   $storeId,
-            partyId:   $data['party_id'],
-            amount:    (float) $data['amount'],
-            createdBy: $createdBy,
-            notes:     $data['notes'] ?? null,
-            date:      $data['date'] ?? null,
+            storeId:       $storeId,
+            partyId:       $data['party_id'],
+            amount:        (float) $data['amount'],
+            createdBy:     $createdBy,
+            notes:         $data['notes'] ?? null,
+            date:          $data['date'] ?? null,
+            receiptNumber: $data['receipt_number'] ?? null,
         );
     }
 }

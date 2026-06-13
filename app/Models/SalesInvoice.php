@@ -24,6 +24,7 @@ class SalesInvoice extends Model
         'remaining_amount',
         'status',
         'notes',
+        'sales_rep_name',
         'cancel_reason',
         'cancelled_by',
         'cancelled_at',

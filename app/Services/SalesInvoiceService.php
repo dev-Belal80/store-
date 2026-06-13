@@ -43,6 +43,7 @@ class SalesInvoiceService
                 'remaining_amount' => $remaining,
                 'status'           => 'confirmed',
                 'notes'            => $dto->notes,
+                'sales_rep_name'   => $dto->salesRepName,
                 'created_by'       => $dto->createdBy,
             ]);
 
