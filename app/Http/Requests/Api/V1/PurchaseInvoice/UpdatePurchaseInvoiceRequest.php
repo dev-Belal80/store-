@@ -5,24 +5,17 @@ namespace App\Http\Requests\Api\V1\PurchaseInvoice;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StorePurchaseInvoiceRequest extends FormRequest
+class UpdatePurchaseInvoiceRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         $storeId = $this->user()?->store_id;
+        $invoiceId = $this->route('id');
 
         return [
             'invoice_number'                 => [
@@ -30,7 +23,8 @@ class StorePurchaseInvoiceRequest extends FormRequest
                 'string',
                 'max:100',
                 Rule::unique('purchase_invoices', 'invoice_number')
-                    ->where(fn($query) => $query->where('store_id', $storeId)),
+                    ->where(fn($query) => $query->where('store_id', $storeId))
+                    ->ignore($invoiceId),
             ],
             'invoice_date'                   => ['nullable', 'date'],
             'supplier_id'                    => ['required', 'exists:suppliers,id'],
@@ -43,6 +37,7 @@ class StorePurchaseInvoiceRequest extends FormRequest
             'items.*.unit_price'             => ['required', 'numeric', 'min:0'],
         ];
     }
+
     public function messages(): array
     {
         return [

@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\PurchaseInvoice\StorePurchaseInvoiceRequest;
+use App\Http\Requests\Api\V1\PurchaseInvoice\UpdatePurchaseInvoiceRequest;
 use App\Http\Requests\Api\V1\SalesInvoice\CancelInvoiceRequest;
 use App\Domain\Store\DTOs\CreatePurchaseInvoiceDTO;
+use App\Domain\Store\DTOs\UpdatePurchaseInvoiceDTO;
 use App\Domain\Store\DTOs\CancelInvoiceDTO;
 use App\Models\PurchaseInvoice;
 use App\Services\PurchaseInvoiceService;
@@ -29,6 +31,7 @@ class PurchaseInvoiceController extends Controller
                 'id',
                 'store_id',
                 'invoice_number',
+                'invoice_date',
                 'supplier_id',
                 'total_amount',
                 'paid_amount',
@@ -64,6 +67,23 @@ class PurchaseInvoiceController extends Controller
             'message' => 'تم إنشاء فاتورة الشراء بنجاح.',
             'invoice' => $invoice,
         ], 201);
+    }
+
+    public function update(UpdatePurchaseInvoiceRequest $request, int $id): JsonResponse
+    {
+        $dto = UpdatePurchaseInvoiceDTO::fromArray(
+            data: $request->validated(),
+            invoiceId: $id,
+            storeId: Auth::user()->getStoreId(),
+            updatedBy: Auth::id(),
+        );
+
+        $invoice = $this->invoiceService->update($dto);
+
+        return response()->json([
+            'message' => 'تم تعديل فاتورة الشراء بنجاح.',
+            'invoice' => $invoice,
+        ]);
     }
 
     public function show(int $id): JsonResponse

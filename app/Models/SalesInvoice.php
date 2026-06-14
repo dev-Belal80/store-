@@ -16,6 +16,7 @@ class SalesInvoice extends Model
     protected $fillable = [
         'store_id',
         'invoice_number',
+        'invoice_date',
         'customer_id',
         'total_amount',
         'discount_amount',
@@ -38,6 +39,7 @@ class SalesInvoice extends Model
         'paid_amount'      => 'float',
         'remaining_amount' => 'float',
         'status'           => InvoiceStatus::class,
+        'invoice_date'     => 'date',
         'cancelled_at'     => 'datetime',
     ];
 

@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\SalesInvoice\StoreSalesInvoiceRequest;
+use App\Http\Requests\Api\V1\SalesInvoice\UpdateSalesInvoiceRequest;
 use App\Http\Requests\Api\V1\SalesInvoice\CancelInvoiceRequest;
 use App\Domain\Store\DTOs\CreateSalesInvoiceDTO;
+use App\Domain\Store\DTOs\UpdateSalesInvoiceDTO;
 use App\Domain\Store\DTOs\CancelInvoiceDTO;
 use App\Models\SalesInvoice;
 use App\Services\SalesInvoiceService;
@@ -29,6 +31,7 @@ class SalesInvoiceController extends Controller
                 'id',
                 'store_id',
                 'invoice_number',
+                'invoice_date',
                 'customer_id',
                 'total_amount',
                 'discount_amount',
@@ -83,6 +86,25 @@ class SalesInvoiceController extends Controller
         ], 201);
     }
 
+    public function update(UpdateSalesInvoiceRequest $request, int $id): JsonResponse
+    {
+        $dto = UpdateSalesInvoiceDTO::fromArray(
+            data: $request->validated(),
+            invoiceId: $id,
+            storeId: Auth::user()->getStoreId(),
+            updatedBy: Auth::id(),
+        );
+
+        $invoice = $this->invoiceService->update($dto);
+        $deficits = $this->invoiceService->getInvoiceDeficits($invoice);
+
+        return response()->json([
+            'message' => 'تم تعديل فاتورة البيع بنجاح.',
+            'invoice' => $invoice,
+            'deficits' => $deficits,
+        ]);
+    }
+
     public function show(int $id): JsonResponse
     {
         $invoice = SalesInvoice::with('items.variant.product.category', 'customer', 'createdBy')
@@ -120,6 +142,7 @@ class SalesInvoiceController extends Controller
         return response()->json([
             'id'               => $invoice->id,
             'invoice_number'   => $invoice->invoice_number,
+            'invoice_date'     => $invoice->invoice_date,
             'total_amount'     => $invoice->total_amount,
             'discount_amount'  => $invoice->discount_amount,
             'net_amount'       => $invoice->net_amount,

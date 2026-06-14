@@ -86,6 +86,7 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
         Route::post('/sales-invoices',                [SalesInvoiceController::class, 'store']);
         Route::get('/sales-invoices/reps-stats',      [SalesInvoiceController::class, 'repsStats']);
         Route::get('/sales-invoices/{id}',            [SalesInvoiceController::class, 'show']);
+        Route::put('/sales-invoices/{id}',            [SalesInvoiceController::class, 'update']);
         Route::get('/sales-invoices/{id}/items',      [SalesInvoiceController::class, 'getItems']);
         Route::post('/sales-invoices/{id}/cancel',    [SalesInvoiceController::class, 'cancel']);
 
@@ -98,6 +99,7 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
         Route::get('/purchase-invoices',              [PurchaseInvoiceController::class, 'index']);
         Route::post('/purchase-invoices',             [PurchaseInvoiceController::class, 'store']);
         Route::get('/purchase-invoices/{id}',         [PurchaseInvoiceController::class, 'show']);
+        Route::put('/purchase-invoices/{id}',         [PurchaseInvoiceController::class, 'update']);
         Route::get('/purchase-invoices/{id}/items',   [PurchaseInvoiceController::class, 'getItems']);
         Route::post('/purchase-invoices/{id}/cancel', [PurchaseInvoiceController::class, 'cancel']);
         Route::post('/purchase-invoices/{id}/attachment', [AttachmentController::class, 'upload']);
