@@ -32,6 +32,7 @@ class StoreSalesInvoiceRequest extends FormRequest
                 Rule::unique('sales_invoices', 'invoice_number')
                     ->where(fn($query) => $query->where('store_id', $storeId)),
             ],
+            'invoice_date'                   => ['nullable', 'date'],
             'customer_id'                    => [
                 'required',
                 Rule::exists('customers', 'id')
@@ -42,6 +43,7 @@ class StoreSalesInvoiceRequest extends FormRequest
             'paid_amount'                    => ['required', 'numeric', 'min:0'],
             'discount_amount'                => ['nullable', 'numeric', 'min:0'],
             'notes'                          => ['nullable', 'string'],
+            'sales_rep_name'                 => ['nullable', 'string', 'max:150'],
             'items'                          => ['required', 'array', 'min:1'],
             'items.*.variant_id'             => [
                 'required',
@@ -62,6 +64,7 @@ class StoreSalesInvoiceRequest extends FormRequest
                 'invoice_number.string'        => 'رقم الفاتورة يجب أن يكون نصًا.',
                 'invoice_number.max'           => 'رقم الفاتورة يجب ألا يتجاوز 100 حرف.',
                 'invoice_number.unique'        => 'رقم الفاتورة مستخدم بالفعل داخل المتجر.',
+                'invoice_date.date'            => 'تاريخ الفاتورة غير صحيح.',
                 'customer_id.required'           => 'يرجى تحديد العميل.',
                 'customer_id.exists'             => 'العميل المحدد غير موجود.',
                 'paid_amount.required'           => 'يرجى إدخال المبلغ المدفوع.',

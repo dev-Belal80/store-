@@ -2,10 +2,11 @@
 
 namespace App\Domain\Store\DTOs;
 
-final class CreateSalesInvoiceDTO
+final class UpdateSalesInvoiceDTO
 {
     /** @param InvoiceItemDTO[] $items */
     public function __construct(
+        public readonly int    $invoiceId,
         public readonly string $storeId,
         public readonly string $invoiceNumber,
         public readonly string $invoiceDate,
@@ -13,12 +14,12 @@ final class CreateSalesInvoiceDTO
         public readonly array  $items,
         public readonly float  $discountAmount,
         public readonly float  $paidAmount,
-        public readonly string $createdBy,
+        public readonly string $updatedBy,
         public readonly ?string $notes = null,
-        public readonly ?string $salesRepName = null, // اسم المهندس/المندوب
+        public readonly ?string $salesRepName = null,
     ) {}
 
-    public static function fromArray(array $data, string $storeId, string $createdBy): self
+    public static function fromArray(array $data, int $invoiceId, string $storeId, string $updatedBy): self
     {
         $items = array_map(
             fn(array $i) => new InvoiceItemDTO(
@@ -30,6 +31,7 @@ final class CreateSalesInvoiceDTO
         );
 
         return new self(
+            invoiceId: $invoiceId,
             storeId: $storeId,
             invoiceNumber: $data['invoice_number'],
             invoiceDate: $data['invoice_date'] ?? date('Y-m-d'),
@@ -37,7 +39,7 @@ final class CreateSalesInvoiceDTO
             items: $items,
             discountAmount: (float) ($data['discount_amount'] ?? 0),
             paidAmount: (float) ($data['paid_amount'] ?? 0),
-            createdBy: $createdBy,
+            updatedBy: $updatedBy,
             notes: $data['notes'] ?? null,
             salesRepName: $data['sales_rep_name'] ?? null,
         );

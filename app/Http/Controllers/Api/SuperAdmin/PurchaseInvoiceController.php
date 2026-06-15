@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\PurchaseInvoice\StorePurchaseInvoiceRequest;
+use App\Http\Requests\Api\V1\PurchaseInvoice\UpdatePurchaseInvoiceRequest;
 use App\Http\Requests\Api\V1\SalesInvoice\CancelInvoiceRequest;
 use App\Domain\Store\DTOs\CreatePurchaseInvoiceDTO;
+use App\Domain\Store\DTOs\UpdatePurchaseInvoiceDTO;
 use App\Domain\Store\DTOs\CancelInvoiceDTO;
 use App\Models\PurchaseInvoice;
 use App\Services\PurchaseInvoiceService;
@@ -29,6 +31,7 @@ class PurchaseInvoiceController extends Controller
                 'id',
                 'store_id',
                 'invoice_number',
+                'invoice_date',
                 'supplier_id',
                 'total_amount',
                 'paid_amount',
@@ -39,6 +42,15 @@ class PurchaseInvoiceController extends Controller
                 'created_at',
             ])
             ->with('supplier:id,name,phone')
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $search = '%' . $request->search . '%';
+
+                $q->where('invoice_number', 'like', $search)
+                    ->orWhereHas('supplier', function ($supplierQuery) use ($search) {
+                        $supplierQuery->where('name', 'like', $search)
+                            ->orWhere('phone', 'like', $search);
+                    });
+            })
             ->when($request->status,      fn($q) => $q->where('status', $request->status))
             ->when($request->supplier_id, fn($q) => $q->where('supplier_id', $request->supplier_id))
             ->when($from,                 fn($q) => $q->where('created_at', '>=', $from))
@@ -66,6 +78,23 @@ class PurchaseInvoiceController extends Controller
         ], 201);
     }
 
+    public function update(UpdatePurchaseInvoiceRequest $request, int $id): JsonResponse
+    {
+        $dto = UpdatePurchaseInvoiceDTO::fromArray(
+            data: $request->validated(),
+            invoiceId: $id,
+            storeId: Auth::user()->getStoreId(),
+            updatedBy: Auth::id(),
+        );
+
+        $invoice = $this->invoiceService->update($dto);
+
+        return response()->json([
+            'message' => 'تم تعديل فاتورة الشراء بنجاح.',
+            'invoice' => $invoice,
+        ]);
+    }
+
     public function show(int $id): JsonResponse
     {
         $invoice = PurchaseInvoice::with('items.product', 'items.variant', 'supplier', 'createdBy')
@@ -87,6 +116,20 @@ class PurchaseInvoiceController extends Controller
 
         return response()->json([
             'message' => 'تم إلغاء فاتورة الشراء.',
+            'invoice' => $invoice,
+        ]);
+    }
+
+    public function destroy(int $id): JsonResponse
+    {
+        $invoice = $this->invoiceService->delete(
+            storeId: Auth::user()->getStoreId(),
+            invoiceId: $id,
+            deletedBy: Auth::id(),
+        );
+
+        return response()->json([
+            'message' => 'تم حذف فاتورة الشراء بنجاح.',
             'invoice' => $invoice,
         ]);
     }

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Domain\Store\DTOs\CancelInvoiceDTO;
 use App\Domain\Store\DTOs\CreateSalesInvoiceDTO;
+use App\Domain\Store\DTOs\UpdateSalesInvoiceDTO;
 use App\Domain\Store\Enums\CashTransactionType;
 use App\Domain\Store\Enums\PartyType;
 use App\Domain\Store\Enums\StockMovementType;
@@ -31,10 +32,10 @@ class SalesInvoiceService
             $paid = min($dto->paidAmount, $net);
             $remaining = $net - $paid;
 
-            // ── Step 2: حفظ الفاتورة ──────────────────────────────
             $invoice = SalesInvoice::create([
                 'store_id'         => $dto->storeId,
                 'invoice_number'   => $dto->invoiceNumber,
+                'invoice_date'     => $dto->invoiceDate,
                 'customer_id'      => $dto->customerId,
                 'total_amount'     => $total,
                 'discount_amount'  => $discount,
@@ -43,6 +44,7 @@ class SalesInvoiceService
                 'remaining_amount' => $remaining,
                 'status'           => 'confirmed',
                 'notes'            => $dto->notes,
+                'sales_rep_name'   => $dto->salesRepName,
                 'created_by'       => $dto->createdBy,
             ]);
 
@@ -137,6 +139,149 @@ class SalesInvoiceService
             if ($paid > 0) {
                 $this->cacheService->invalidateCashBalance($dto->storeId);
             }
+
+            return $invoice->load('items.variant.product.category', 'customer');
+        });
+    }
+
+    public function update(UpdateSalesInvoiceDTO $dto): SalesInvoice
+    {
+        return DB::transaction(function () use ($dto) {
+            $invoice = SalesInvoice::where('store_id', $dto->storeId)
+                ->findOrFail($dto->invoiceId);
+
+            if ($invoice->isCancelled()) {
+                throw ValidationException::withMessages([
+                    'invoice' => 'لا يمكن تعديل فاتورة ملغاة.',
+                ]);
+            }
+
+            // ── Step 1: حذف الحركات القديمة ───────────────────────
+            $oldProductIds = $invoice->items()->pluck('product_id')->toArray();
+            
+            $invoice->items()->delete();
+            StockMovement::where('reference_type', 'sales_invoice')
+                ->where('reference_id', $invoice->id)
+                ->delete();
+            FinancialTransaction::whereIn('reference_type', ['sales_invoice', 'sales_invoice_payment'])
+                ->where('reference_id', $invoice->id)
+                ->delete();
+            CashTransaction::where('reference_type', 'sales_invoice')
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            // ── Step 2: حساب الإجمالي الجديد ────────────────────────
+            $total = $this->calculateTotal($dto->items);
+            $discount = max($dto->discountAmount, 0);
+            $net = max($total - $discount, 0);
+            $paid = min($dto->paidAmount, $net);
+            $remaining = $net - $paid;
+
+            // ── Step 3: تحديث الفاتورة ──────────────────────────────
+            $invoice->update([
+                'invoice_number'   => $dto->invoiceNumber,
+                'invoice_date'     => $dto->invoiceDate,
+                'customer_id'      => $dto->customerId,
+                'total_amount'     => $total,
+                'discount_amount'  => $discount,
+                'net_amount'       => $net,
+                'paid_amount'      => $paid,
+                'remaining_amount' => $remaining,
+                'notes'            => $dto->notes,
+                'sales_rep_name'   => $dto->salesRepName,
+            ]);
+
+            // ── Step 4: حفظ بنود الفاتورة الجديدة ───────────────────
+            $affectedProductIds = $oldProductIds;
+            foreach ($dto->items as $item) {
+                $variant = ProductVariant::where('store_id', $dto->storeId)
+                    ->with(['product' => fn ($query) => $query
+                        ->withoutGlobalScopes()
+                        ->withTrashed()
+                        ->select(['id', 'store_id', 'name'])])
+                    ->findOrFail($item->variantId);
+
+                $productName = $variant->product?->name;
+                if (blank($productName)) {
+                    throw ValidationException::withMessages([
+                        'items' => 'لا يمكن تعديل الفاتورة لأن بيانات المنتج المرتبط بأحد الأحجام غير مكتملة.',
+                    ]);
+                }
+
+                $affectedProductIds[] = (int) $variant->product_id;
+
+                SalesInvoiceItem::create([
+                    'invoice_id'   => $invoice->id,
+                    'product_id'   => $variant->product_id,
+                    'variant_id'   => $variant->id,
+                    'product_name' => $productName,
+                    'variant_name' => $variant->name,
+                    'quantity'     => $item->quantity,
+                    'unit_price'   => $item->unitPrice,
+                    'total_price'  => round($item->quantity * $item->unitPrice, 2),
+                ]);
+
+                // خصم المخزون
+                StockMovement::create([
+                    'store_id'       => $dto->storeId,
+                    'product_id'     => $variant->product_id,
+                    'variant_id'     => $variant->id,
+                    'type'           => StockMovementType::OUT,
+                    'quantity'       => $item->quantity,
+                    'reference_type' => 'sales_invoice',
+                    'reference_id'   => $invoice->id,
+                    'notes'          => "بيع (تعديل) - فاتورة رقم {$invoice->invoice_number}",
+                    'created_by'     => $dto->updatedBy,
+                ]);
+            }
+
+            // ── Step 5: قيد مالي مدين جديد على العميل ─────────────
+            FinancialTransaction::create([
+                'store_id'       => $dto->storeId,
+                'party_type'     => PartyType::CUSTOMER,
+                'party_id'       => $dto->customerId,
+                'type'           => TransactionType::DEBIT,
+                'amount'         => $net,
+                'reference_type' => 'sales_invoice',
+                'reference_id'   => $invoice->id,
+                'description'    => "فاتورة بيع رقم {$invoice->invoice_number} (معدلة)",
+                'created_by'     => $dto->updatedBy,
+            ]);
+
+            // ── Step 6: قيد نقدي جديد إذا في مدفوع ────────────────
+            if ($paid > 0) {
+                $this->recordCashIn(
+                    storeId: $dto->storeId,
+                    amount: $paid,
+                    referenceType: 'sales_invoice',
+                    referenceId: $invoice->id,
+                    description: "تحصيل نقدي - فاتورة {$invoice->invoice_number} (معدلة)",
+                    createdBy: $dto->updatedBy,
+                );
+
+                FinancialTransaction::create([
+                    'store_id'       => $dto->storeId,
+                    'party_type'     => PartyType::CUSTOMER,
+                    'party_id'       => $dto->customerId,
+                    'type'           => TransactionType::CREDIT,
+                    'amount'         => $paid,
+                    'reference_type' => 'sales_invoice_payment',
+                    'reference_id'   => $invoice->id,
+                    'description'    => "دفعة نقدية - فاتورة {$invoice->invoice_number} (معدلة)",
+                    'created_by'     => $dto->updatedBy,
+                ]);
+            }
+
+            $this->cacheService->invalidateStock(
+                storeId: $dto->storeId,
+                productIds: array_unique($affectedProductIds),
+            );
+            $this->cacheService->invalidateProductsDropdown($dto->storeId);
+            $this->cacheService->invalidateCustomerBalance($dto->customerId);
+            if ($invoice->customer_id != $dto->customerId) {
+                $this->cacheService->invalidateCustomerBalance($invoice->customer_id);
+            }
+            $this->cacheService->invalidateCashBalance($dto->storeId);
 
             return $invoice->load('items.variant.product.category', 'customer');
         });
@@ -271,6 +416,49 @@ class SalesInvoiceService
             }
 
             return $invoice->load('items.variant.product.category', 'customer');
+        });
+    }
+
+    public function delete(int $storeId, int $invoiceId, int $deletedBy): SalesInvoice
+    {
+        return DB::transaction(function () use ($storeId, $invoiceId) {
+            $invoice = SalesInvoice::with('items', 'returns')
+                ->where('store_id', $storeId)
+                ->findOrFail($invoiceId);
+
+            if ($invoice->returns()->exists()) {
+                throw ValidationException::withMessages([
+                    'invoice' => 'لا يمكن حذف الفاتورة لأنها لها مرتجعات مرتبطة بها.',
+                ]);
+            }
+
+            StockMovement::where('reference_type', 'sales_invoice')
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            StockMovement::where('reference_type', 'sales_invoice_cancel')
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            FinancialTransaction::whereIn('reference_type', [
+                    'sales_invoice',
+                    'sales_invoice_payment',
+                    'sales_invoice_cancel',
+                    'customer_credit',
+                ])
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            CashTransaction::whereIn('reference_type', [
+                    'sales_invoice',
+                    'sales_invoice_cancel',
+                ])
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            $invoice->forceDelete();
+
+            return $invoice;
         });
     }
 
