@@ -22,7 +22,10 @@ class RecordPaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-           'party_id'       => ['required', 'integer'],
+            // invoice_id: null or 0 indicates a direct payment (not linked to an invoice)
+            'invoice_id'     => ['nullable', 'integer', 'min:0'],
+            // when invoice_id == 0, the request must include party_id (customer or supplier)
+            'party_id'       => ['nullable', 'integer', 'min:1', 'required_if:invoice_id,0'],
             'amount'         => ['required', 'numeric', 'min:0.01'],
             'notes'          => ['nullable', 'string'],
             'date'           => ['nullable', 'date'],
@@ -32,7 +35,7 @@ class RecordPaymentRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'party_id.required' => 'يرجى تحديد العميل أو المورد.',
+            'invoice_id.required' => 'يرجى تحديد رقم الفاتورة المرتبط بالدفع.',
             'amount.required'   => 'يرجى إدخال مبلغ الدفع.',
             'amount.min'        => 'يجب أن يكون مبلغ الدفع 0.01 أو أكثر.',
         

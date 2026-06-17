@@ -87,19 +87,40 @@ class FinancialRepository implements IFinancialRepository
         ?string   $dateTo   = null,
         int       $perPage  = 10,
     ): LengthAwarePaginator {
-        $query = FinancialTransaction::where('party_id', $partyId)
-            ->where('party_type', $partyType)
-            ->where('store_id', $storeId);
+        // Build a query that prefers invoice/cash transaction dates when available,
+        // falling back to the financial transaction created_at timestamp.
+        $query = FinancialTransaction::query()
+            ->where('financial_transactions.party_id', $partyId)
+            ->where('financial_transactions.party_type', $partyType)
+            ->where('financial_transactions.store_id', $storeId)
+            ->leftJoin('sales_invoices', function ($join) {
+                $join->on('financial_transactions.reference_id', '=', 'sales_invoices.id')
+                     ->where('financial_transactions.reference_type', 'sales_invoice');
+            })
+            ->leftJoin('purchase_invoices', function ($join) {
+                $join->on('financial_transactions.reference_id', '=', 'purchase_invoices.id')
+                     ->where('financial_transactions.reference_type', 'purchase_invoice');
+            })
+            ->leftJoin('cash_transactions', function ($join) {
+                $join->on('financial_transactions.reference_type', '=', 'cash_transactions.reference_type')
+                     ->on('financial_transactions.reference_id', '=', 'cash_transactions.reference_id')
+                     ->whereColumn('financial_transactions.amount', 'cash_transactions.amount');
+            })
+
+            ->select('financial_transactions.*')
+            ->selectRaw("COALESCE(cash_transactions.transaction_date, sales_invoices.invoice_date, purchase_invoices.invoice_date, financial_transactions.created_at) as transaction_date");
+
+        $dateExpr = "COALESCE(cash_transactions.transaction_date, sales_invoices.invoice_date, purchase_invoices.invoice_date, financial_transactions.created_at)";
 
         if ($dateFrom) {
-            $query->where('created_at', '>=', $dateFrom . ' 00:00:00');
+            $query->whereRaw("{$dateExpr} >= ?", [$dateFrom . ' 00:00:00']);
         }
         if ($dateTo) {
-            $query->where('created_at', '<=', $dateTo . ' 23:59:59');
+            $query->whereRaw("{$dateExpr} <= ?", [$dateTo . ' 23:59:59']);
         }
 
         return $query
-            ->orderByDesc('created_at')
+            ->orderByRaw("{$dateExpr} DESC")
             ->paginate($perPage)
             ->withQueryString();
     }

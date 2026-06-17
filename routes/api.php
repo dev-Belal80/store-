@@ -119,6 +119,10 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
         // ── المدفوعات ─────────────────────────────────────────────
         Route::post('/payments/customer',             [PaymentController::class, 'collectFromCustomer']);
         Route::post('/payments/supplier',             [PaymentController::class, 'payToSupplier']);
+        Route::get('/payments/customers/{id}',        [PaymentController::class, 'listCustomerPayments']);
+        Route::get('/payments/suppliers/{id}',        [PaymentController::class, 'listSupplierPayments']);
+        Route::put('/payments/{id}',                  [PaymentController::class, 'updatePayment']);
+        Route::delete('/payments/{id}',               [PaymentController::class, 'deletePayment']);
 
         // ── الكاش ─────────────────────────────────────────────────
         Route::post('/cash/opening-balance',          [CashController::class, 'openingBalance']);

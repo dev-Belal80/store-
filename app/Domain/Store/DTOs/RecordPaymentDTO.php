@@ -4,18 +4,21 @@ final class RecordPaymentDTO
 {
     public function __construct(
         public readonly string  $storeId,
-        public readonly string  $partyId,     // customer_id أو supplier_id
+        public readonly int     $invoiceId,
+        public readonly ?int    $partyId,
         public readonly float   $amount,
         public readonly string  $createdBy,
         public readonly ?string $notes = null,
         public readonly ?string $date  = null, // null = today
         public readonly ?string $receiptNumber = null, // رقم فاتورة التحصيل
     ) {}
-      public static function fromArray(array $data, string $storeId, string $createdBy): self
+
+    public static function fromArray(array $data, string $storeId, string $createdBy): self
     {
         return new self(
             storeId:       $storeId,
-            partyId:       $data['party_id'],
+            invoiceId:     isset($data['invoice_id']) ? (int) $data['invoice_id'] : 0,
+            partyId:       isset($data['party_id']) ? (int) $data['party_id'] : null,
             amount:        (float) $data['amount'],
             createdBy:     $createdBy,
             notes:         $data['notes'] ?? null,
