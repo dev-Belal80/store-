@@ -11,6 +11,11 @@ use App\Models\ProductVariant;
 use App\Models\Customer;
 use App\Models\Supplier;
 use App\Models\StockMovement;
+use App\Models\SalesInvoice;
+use App\Models\PurchaseInvoice;
+use App\Models\CashTransaction;
+use App\Models\FinancialTransaction;
+use App\Domain\Store\Enums\InvoiceStatus;
 
 class SimulationSeeder extends Seeder
 {
@@ -20,10 +25,11 @@ class SimulationSeeder extends Seeder
     public function run(): void
     {
         // ── 1. Store + Admin ──────────────────────────────────────────
-        $store = Store::create([
+        $store = Store::firstOrCreate([
+            'email' => 'simulation@ayad-agro.com',
+        ], [
             'name'       => 'مستلزمات الزراعة - عياد جروب',
             'owner_name' => 'عياد جروب',
-            'email'      => 'simulation@ayad-agro.com',
             'slug'       => 'ayad-agro',
             'phone'      => '01001234567',
             'address'    => 'شارع الزراعة، القاهرة',
@@ -32,14 +38,21 @@ class SimulationSeeder extends Seeder
 
         $this->storeId = $store->id;
 
-        $owner = User::create([
+        $owner = User::firstOrCreate([
+            'email' => 'admin@ayad.com',
+        ], [
             'store_id' => $store->id,
             'name'     => 'أحمد صلاح',
-            'email'    => 'admin@ayad.com',
             'password' => bcrypt('password123'),
             'role'     => 'store_owner',
             'is_active'=> true,
         ]);
+
+        // Ensure owner is associated with this store
+        if ($owner->store_id !== $store->id) {
+            $owner->store_id = $store->id;
+            $owner->save();
+        }
 
         $this->createdByUserId = $owner->id;
 
@@ -80,7 +93,7 @@ class SimulationSeeder extends Seeder
 
         $categories = [];
         foreach ($names as $name) {
-            $categories[$name] = Category::create([
+            $categories[$name] = Category::withoutGlobalScopes()->firstOrCreate([
                 'store_id' => $this->storeId,
                 'name'     => $name,
             ]);
@@ -106,6 +119,49 @@ class SimulationSeeder extends Seeder
         foreach ($data as $row) {
             unset($row['balance']);
             $suppliers[] = Supplier::create(array_merge($row, ['store_id' => $this->storeId]));
+        }
+        // Create sample purchase invoices and payments for first few suppliers
+        foreach (array_slice($suppliers, 0, 4) as $i => $supplier) {
+            $invoiceDate = now()->subDays(8 - $i)->toDateString();
+            $total = 800 + ($i * 400);
+            $paid = $i % 2 === 1 ? ($total * 0.4) : 0; // alternate paid
+
+            $invoice = PurchaseInvoice::create([
+                'store_id'         => $this->storeId,
+                'invoice_number'   => PurchaseInvoice::generateNumber($this->storeId),
+                'invoice_date'     => $invoiceDate,
+                'supplier_id'      => $supplier->id,
+                'total_amount'     => $total,
+                'paid_amount'      => $paid,
+                'remaining_amount' => $total - $paid,
+                'status'           => InvoiceStatus::CONFIRMED,
+                'created_by'       => $this->createdByUserId,
+            ]);
+
+            if ($paid > 0) {
+                CashTransaction::create([
+                    'store_id'         => $this->storeId,
+                    'type'             => 'out',
+                    'amount'           => $paid,
+                    'reference_type'   => 'purchase_invoice',
+                    'reference_id'     => $invoice->id,
+                    'description'      => "Payment for purchase {$invoice->invoice_number}",
+                    'transaction_date' => $invoiceDate,
+                    'created_by'       => $this->createdByUserId,
+                ]);
+
+                FinancialTransaction::create([
+                    'store_id'       => $this->storeId,
+                    'party_type'     => 'supplier',
+                    'party_id'       => $supplier->id,
+                    'type'           => 'debit',
+                    'amount'         => $paid,
+                    'reference_type' => 'purchase_invoice',
+                    'reference_id'   => $invoice->id,
+                    'description'    => "Payment applied",
+                    'created_by'     => $this->createdByUserId,
+                ]);
+            }
         }
         return $suppliers;
     }
@@ -140,6 +196,52 @@ class SimulationSeeder extends Seeder
         foreach ($data as $row) {
             unset($row['balance']);
             $customers[] = Customer::create(array_merge($row, ['store_id' => $this->storeId]));
+        }
+        // Create sample sales invoices and payments for first few customers
+        foreach (array_slice($customers, 0, 4) as $i => $customer) {
+            $invoiceDate = now()->subDays(10 - $i)->toDateString();
+            $total = 1000 + ($i * 500);
+            $paid = $i % 2 === 0 ? ($total * 0.5) : 0; // some partially paid, some unpaid
+
+            $invoice = SalesInvoice::create([
+                'store_id'        => $this->storeId,
+                'invoice_number'  => SalesInvoice::generateNumber($this->storeId),
+                'invoice_date'    => $invoiceDate,
+                'customer_id'     => $customer->id,
+                'total_amount'    => $total,
+                'discount_amount' => 0,
+                'net_amount'      => $total,
+                'paid_amount'     => $paid,
+                'remaining_amount'=> $total - $paid,
+                'status'          => InvoiceStatus::CONFIRMED,
+                'created_by'      => $this->createdByUserId,
+            ]);
+
+            // create cash transaction and financial transaction for paid amount
+            if ($paid > 0) {
+                CashTransaction::create([
+                    'store_id'         => $this->storeId,
+                    'type'             => 'in',
+                    'amount'           => $paid,
+                    'reference_type'   => 'sales_invoice',
+                    'reference_id'     => $invoice->id,
+                    'description'      => "Payment for invoice {$invoice->invoice_number}",
+                    'transaction_date' => $invoiceDate,
+                    'created_by'       => $this->createdByUserId,
+                ]);
+
+                FinancialTransaction::create([
+                    'store_id'       => $this->storeId,
+                    'party_type'     => 'customer',
+                    'party_id'       => $customer->id,
+                    'type'           => 'credit',
+                    'amount'         => $paid,
+                    'reference_type' => 'sales_invoice',
+                    'reference_id'   => $invoice->id,
+                    'description'    => "Payment applied",
+                    'created_by'     => $this->createdByUserId,
+                ]);
+            }
         }
         return $customers;
     }
