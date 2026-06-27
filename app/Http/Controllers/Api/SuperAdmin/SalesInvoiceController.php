@@ -270,7 +270,7 @@ class SalesInvoiceController extends Controller
                     ->where('party_type', 'customer')
                     ->whereIn('party_id', $customerIds)
                     ->where('type', 'credit')
-                    ->where('reference_type', 'direct_payment')
+                    ->whereIn('reference_type', ['direct_payment', 'payment'])
                     ->sum('amount');
             }
 

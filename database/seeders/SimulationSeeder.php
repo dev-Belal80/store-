@@ -69,6 +69,9 @@ class SimulationSeeder extends Seeder
         // ── 5. Products + Variants ────────────────────────────────────
         $this->seedProducts($categories);
 
+        // ── 6. Sales Data (Invoices & Collections) ────────────────────
+        $this->seedSalesData($customers);
+
         $this->command->info('✅ Simulation Seeder completed successfully!');
         $this->command->info("   Store ID: {$store->id}");
         $this->command->info("   Categories: " . count($categories));
@@ -198,98 +201,6 @@ class SimulationSeeder extends Seeder
             unset($row['balance']);
             $customers[] = Customer::create(array_merge($row, ['store_id' => $this->storeId]));
         }
-        // Create sample sales invoices and payments for first few customers
-        foreach (array_slice($customers, 0, 4) as $i => $customer) {
-            $invoiceDate = now()->subDays(10 - $i)->toDateString();
-            $total = 1000 + ($i * 500);
-            $paid = $i % 2 === 0 ? ($total * 0.5) : 0; // some partially paid, some unpaid
-
-            $invoice = SalesInvoice::create([
-                'store_id'        => $this->storeId,
-                'invoice_number'  => SalesInvoice::generateNumber($this->storeId),
-                'invoice_date'    => $invoiceDate,
-                'customer_id'     => $customer->id,
-                'total_amount'    => $total,
-                'discount_amount' => 0,
-                'net_amount'      => $total,
-                'paid_amount'     => $paid,
-                'remaining_amount'=> $total - $paid,
-                'status'          => InvoiceStatus::CONFIRMED,
-                'created_by'      => $this->createdByUserId,
-            ]);
-
-            // create cash transaction and financial transaction for paid amount
-            if ($paid > 0) {
-                CashTransaction::create([
-                    'store_id'         => $this->storeId,
-                    'type'             => 'in',
-                    'amount'           => $paid,
-                    'reference_type'   => 'sales_invoice',
-                    'reference_id'     => $invoice->id,
-                    'description'      => "Payment for invoice {$invoice->invoice_number}",
-                    'transaction_date' => $invoiceDate,
-                    'created_by'       => $this->createdByUserId,
-                ]);
-
-                FinancialTransaction::create([
-                    'store_id'       => $this->storeId,
-                    'party_type'     => 'customer',
-                    'party_id'       => $customer->id,
-                    'type'           => 'credit',
-                    'amount'         => $paid,
-                    'reference_type' => 'sales_invoice',
-                    'reference_id'   => $invoice->id,
-                    'description'    => "Payment applied",
-                    'created_by'     => $this->createdByUserId,
-                ]);
-            }
-        }
-
-        // Create 100 test payment collection records for pagination testing
-        $firstCustomer = $customers[0] ?? null;
-        if ($firstCustomer) {
-            for ($i = 1; $i <= 100; $i++) {
-                $amount = rand(500, 15000);
-                $paymentDate = now()->subDays(101 - $i)->toDateString();
-                
-                $payment = Payment::create([
-                    'store_id' => $this->storeId,
-                    'party_type' => 'customer',
-                    'party_id' => $firstCustomer->id,
-                    'amount' => $amount,
-                    'payment_number' => sprintf('PM-TEST-%04d', $i),
-                    'payment_date' => $paymentDate,
-                    'description' => "دفعة تجريبية رقم {$i} لاختبار Pagination",
-                    'receipt_number' => sprintf('RC-TEST-%04d', $i),
-                    'created_by' => $this->createdByUserId,
-                ]);
-
-                FinancialTransaction::create([
-                    'store_id'       => $this->storeId,
-                    'party_type'     => 'customer',
-                    'party_id'       => $firstCustomer->id,
-                    'type'           => 'credit',
-                    'amount'         => $amount,
-                    'reference_type' => 'payment',
-                    'reference_id'   => $payment->id,
-                    'description'    => "تحصيل نقدي مباشر من العميل: {$firstCustomer->id} (تجريبي رقم {$i})",
-                    'receipt_number' => sprintf('RC-TEST-%04d', $i),
-                    'created_by'     => $this->createdByUserId,
-                ]);
-
-                CashTransaction::create([
-                    'store_id'         => $this->storeId,
-                    'type'             => 'in',
-                    'amount'           => $amount,
-                    'reference_type'   => 'payment',
-                    'reference_id'     => $payment->id,
-                    'description'      => "تحصيل نقدي مباشر من العميل: {$firstCustomer->id} (تجريبي رقم {$i})",
-                    'transaction_date' => $paymentDate,
-                    'created_by'       => $this->createdByUserId,
-                ]);
-            }
-        }
-
         return $customers;
     }
 
@@ -525,5 +436,202 @@ class SimulationSeeder extends Seeder
                 }
             }
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    private function seedSalesData(array $customers): void
+    {
+        $this->command->info('⏳ Seeding 100 invoices and 30 collections per customer/representative...');
+
+        $variants = ProductVariant::withoutGlobalScopes()
+            ->where('store_id', $this->storeId)
+            ->with(['product' => fn($q) => $q->withoutGlobalScopes()])
+            ->get();
+
+        if ($variants->isEmpty()) {
+            $this->command->error('❌ Cannot seed invoices: No product variants found.');
+            return;
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($customers, $variants) {
+            foreach ($customers as $index => $customer) {
+                // We create a distinct rep for each customer to satisfy "وكذلك كل مندوب"
+                $repName = "مهندس " . ($index + 1);
+
+                // 1. Seed 100 invoices
+                for ($i = 1; $i <= 100; $i++) {
+                    $invoiceDate = now()->subDays(rand(1, 180))->toDateString();
+                    
+                    // Choose 1 or 2 random variants
+                    $itemsCount = rand(1, 2);
+                    $selectedVariants = $variants->random($itemsCount);
+
+                    $totalAmount = 0;
+                    $itemsToCreate = [];
+
+                    foreach ($selectedVariants as $variant) {
+                        $qty = rand(1, 5);
+                        $price = $variant->sale_price;
+                        $lineTotal = $qty * $price;
+                        $totalAmount += $lineTotal;
+
+                        $itemsToCreate[] = [
+                            'product_id'   => $variant->product_id,
+                            'variant_id'   => $variant->id,
+                            'product_name' => $variant->product->name,
+                            'variant_name' => $variant->name,
+                            'quantity'     => $qty,
+                            'unit_price'   => $price,
+                            'total_price'  => $lineTotal,
+                        ];
+                    }
+
+                    // Spread payment styles: 40% fully paid, 30% partially paid, 30% unpaid
+                    $randPay = rand(1, 10);
+                    if ($randPay <= 4) {
+                        $paid = $totalAmount;
+                    } elseif ($randPay <= 7) {
+                        $paid = round($totalAmount * rand(2, 6) / 10, 2);
+                    } else {
+                        $paid = 0;
+                    }
+
+                    $invoiceNumber = 'SI-SIM-' . $customer->id . '-' . str_pad($i, 4, '0', STR_PAD_LEFT);
+
+                    $invoice = SalesInvoice::create([
+                        'store_id'         => $this->storeId,
+                        'customer_id'      => $customer->id,
+                        'invoice_number'   => $invoiceNumber,
+                        'invoice_date'     => $invoiceDate,
+                        'total_amount'     => $totalAmount,
+                        'discount_amount'  => 0,
+                        'net_amount'       => $totalAmount,
+                        'paid_amount'      => $paid,
+                        'remaining_amount' => $totalAmount - $paid,
+                        'status'           => InvoiceStatus::CONFIRMED,
+                        'sales_rep_name'   => $repName,
+                        'created_by'       => $this->createdByUserId,
+                        'created_at'       => $invoiceDate,
+                        'updated_at'       => $invoiceDate,
+                    ]);
+
+                    foreach ($itemsToCreate as $item) {
+                        SalesInvoiceItem::create(array_merge($item, [
+                            'invoice_id' => $invoice->id,
+                        ]));
+
+                        StockMovement::create([
+                            'store_id'       => $this->storeId,
+                            'product_id'     => $item['product_id'],
+                            'variant_id'     => $item['variant_id'],
+                            'type'           => 'out',
+                            'quantity'       => $item['quantity'],
+                            'reference_type' => 'sales_invoice',
+                            'reference_id'   => $invoice->id,
+                            'notes'          => "بيع محاكاة - فاتورة {$invoiceNumber}",
+                            'created_by'     => $this->createdByUserId,
+                            'created_at'     => $invoiceDate,
+                            'updated_at'     => $invoiceDate,
+                        ]);
+                    }
+
+                    FinancialTransaction::create([
+                        'store_id'       => $this->storeId,
+                        'party_type'     => 'customer',
+                        'party_id'       => $customer->id,
+                        'type'           => 'debit',
+                        'amount'         => $totalAmount,
+                        'reference_type' => 'sales_invoice',
+                        'reference_id'   => $invoice->id,
+                        'description'    => "فاتورة بيع - {$invoiceNumber}",
+                        'created_by'     => $this->createdByUserId,
+                        'created_at'     => $invoiceDate,
+                        'updated_at'     => $invoiceDate,
+                    ]);
+
+                    if ($paid > 0) {
+                        FinancialTransaction::create([
+                            'store_id'       => $this->storeId,
+                            'party_type'     => 'customer',
+                            'party_id'       => $customer->id,
+                            'type'           => 'credit',
+                            'amount'         => $paid,
+                            'reference_type' => 'sales_invoice_payment',
+                            'reference_id'   => $invoice->id,
+                            'description'    => "دفعة بيع - {$invoiceNumber}",
+                            'created_by'     => $this->createdByUserId,
+                            'created_at'     => $invoiceDate,
+                            'updated_at'     => $invoiceDate,
+                        ]);
+
+                        CashTransaction::create([
+                            'store_id'         => $this->storeId,
+                            'type'             => 'in',
+                            'amount'           => $paid,
+                            'reference_type'   => 'sales_invoice',
+                            'reference_id'     => $invoice->id,
+                            'description'      => "تحصيل دفعة - فاتورة {$invoiceNumber}",
+                            'transaction_date' => $invoiceDate,
+                            'created_by'       => $this->createdByUserId,
+                            'created_at'       => $invoiceDate,
+                            'updated_at'       => $invoiceDate,
+                        ]);
+                    }
+                }
+
+                // 2. Seed 30 direct collections (payments)
+                for ($j = 1; $j <= 30; $j++) {
+                    $amount = rand(200, 3000);
+                    $paymentDate = now()->subDays(rand(1, 180))->toDateString();
+
+                    $paymentNumber = 'PM-SIM-' . $customer->id . '-' . str_pad($j, 4, '0', STR_PAD_LEFT);
+                    $receiptNumber = 'RC-SIM-' . $customer->id . '-' . str_pad($j, 4, '0', STR_PAD_LEFT);
+
+                    $payment = Payment::create([
+                        'store_id' => $this->storeId,
+                        'party_type' => 'customer',
+                        'party_id' => $customer->id,
+                        'amount' => $amount,
+                        'payment_number' => $paymentNumber,
+                        'payment_date' => $paymentDate,
+                        'description' => "تحصيل نقدي مباشر - سند {$j}",
+                        'receipt_number' => $receiptNumber,
+                        'created_by' => $this->createdByUserId,
+                        'created_at' => $paymentDate,
+                        'updated_at' => $paymentDate,
+                    ]);
+
+                    FinancialTransaction::create([
+                        'store_id'       => $this->storeId,
+                        'party_type'     => 'customer',
+                        'party_id'       => $customer->id,
+                        'type'           => 'credit',
+                        'amount'         => $amount,
+                        'reference_type' => 'payment',
+                        'reference_id'   => $payment->id,
+                        'description'    => "تحصيل نقدي مباشر من العميل: {$customer->name} (سند {$j})",
+                        'receipt_number' => $receiptNumber,
+                        'created_by'     => $this->createdByUserId,
+                        'created_at'     => $paymentDate,
+                        'updated_at'     => $paymentDate,
+                    ]);
+
+                    CashTransaction::create([
+                        'store_id'         => $this->storeId,
+                        'type'             => 'in',
+                        'amount'           => $amount,
+                        'reference_type'   => 'payment',
+                        'reference_id'     => $payment->id,
+                        'description'      => "تحصيل نقدي مباشر من العميل: {$customer->name} (سند {$j})",
+                        'transaction_date' => $paymentDate,
+                        'created_by'       => $this->createdByUserId,
+                        'created_at'       => $paymentDate,
+                        'updated_at'       => $paymentDate,
+                    ]);
+                }
+            }
+        });
+
+        $this->command->info('✅ Successfully seeded simulation sales data!');
     }
 }
