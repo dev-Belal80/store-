@@ -19,7 +19,7 @@ class UpdatePurchaseInvoiceRequest extends FormRequest
 
         return [
             'invoice_number'                 => [
-                'required',
+                'nullable',
                 'string',
                 'max:100',
                 Rule::unique('purchase_invoices', 'invoice_number')
