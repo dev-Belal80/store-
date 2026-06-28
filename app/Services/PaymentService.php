@@ -446,6 +446,7 @@ class PaymentService
 
             $ftData = [];
             if (array_key_exists('amount', $data) && $data['amount'] !== null)          $ftData['amount']         = $data['amount'];
+
             if (array_key_exists('description', $data) && $data['description'] !== null) $ftData['description']     = $data['description'];
             if (array_key_exists('receipt_number', $data) && $data['receipt_number'] !== null) $ftData['receipt_number'] = $data['receipt_number'];
             $ft->fill($ftData);
@@ -471,6 +472,7 @@ class PaymentService
             if ($cash) {
                 $cash->amount = $data['amount'] ?? $cash->amount;
                 if (isset($data['description'])) $cash->description = $data['description'];
+                if (isset($data['payment_date'])) $cash->payment_date = $data['payment_date'];
                 if (isset($data['transaction_date'])) $cash->transaction_date = $data['transaction_date'];
                 $cash->save();
             }
