@@ -496,28 +496,6 @@ class PaymentService
                 $this->cacheService->invalidateSupplierBalance($ft->party_id);
             }
             $this->cacheService->invalidateCashBalance($storeId);
-                if ($delta !== 0) {
-                    if ($ft->reference_type === 'sales_invoice_payment') {
-                        $invoice = \App\Models\SalesInvoice::where('store_id', $storeId)->find($ft->reference_id);
-                    } else {
-                        $invoice = \App\Models\PurchaseInvoice::where('store_id', $storeId)->find($ft->reference_id);
-                    }
-
-                    if ($invoice) {
-                        $invoice->paid_amount = ($invoice->paid_amount ?? 0) + $delta;
-                        $invoice->remaining_amount = max(0, ($invoice->total_amount ?? 0) - $invoice->paid_amount);
-                        $invoice->save();
-                    }
-                }
-            }
-
-            // invalidate caches
-            if ($ft->party_type === PartyType::CUSTOMER) {
-                $this->cacheService->invalidateCustomerBalance($ft->party_id);
-            } else {
-                $this->cacheService->invalidateSupplierBalance($ft->party_id);
-            }
-            $this->cacheService->invalidateCashBalance($storeId);
         });
     }
 
