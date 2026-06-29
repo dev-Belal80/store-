@@ -47,15 +47,7 @@ class SalesInvoiceController extends Controller
             ->with('customer:id,name,phone')
             ->when(
                 $request->filled('search'),
-                fn($q) => $q->where(function ($query) use ($request) {
-                    $search = '%' . $request->search . '%';
-
-                    $query->where('invoice_number', 'like', $search)
-                        ->orWhereHas('customer', function ($customerQuery) use ($search) {
-                            $customerQuery->where('name', 'like', $search)
-                                ->orWhere('phone', 'like', $search);
-                        });
-                })
+                fn($q) => $q->where('invoice_number', 'like', '%' . $request->search . '%')
             )
             ->when($request->status,      fn($q) => $q->where('status', $request->status))
             ->when($request->customer_id, fn($q) => $q->where('customer_id', $request->customer_id))

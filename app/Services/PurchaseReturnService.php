@@ -148,10 +148,6 @@ class PurchaseReturnService
             $search = '%' . $filters['search'] . '%';
             $query->where(function ($q) use ($search) {
                 $q->where('return_number', 'like', $search)
-                    ->orWhereHas('supplier', function ($supplierQuery) use ($search) {
-                        $supplierQuery->where('name', 'like', $search)
-                            ->orWhere('phone', 'like', $search);
-                    })
                     ->orWhereHas('invoice', function ($invoiceQuery) use ($search) {
                         $invoiceQuery->where('invoice_number', 'like', $search);
                     });
