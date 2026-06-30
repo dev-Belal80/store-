@@ -19,7 +19,7 @@ class UpdateSalesInvoiceRequest extends FormRequest
 
         return [
             'invoice_number' => [
-                'required',
+                'nullable',
                 'string',
                 'max:100',
                 Rule::unique('sales_invoices', 'invoice_number')

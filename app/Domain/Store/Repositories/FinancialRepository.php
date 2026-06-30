@@ -106,9 +106,15 @@ class FinancialRepository implements IFinancialRepository
                      ->on('financial_transactions.reference_id', '=', 'cash_transactions.reference_id')
                      ->whereColumn('financial_transactions.amount', 'cash_transactions.amount');
             })
+            ->leftJoin('payments', function ($join) {
+                $join->on('financial_transactions.reference_id', '=', 'payments.id')
+                     ->where('financial_transactions.reference_type', 'payment');
+            })
 
             ->select('financial_transactions.*')
-            ->selectRaw("COALESCE(cash_transactions.transaction_date, sales_invoices.invoice_date, purchase_invoices.invoice_date, financial_transactions.created_at) as transaction_date");
+            ->selectRaw("COALESCE(cash_transactions.transaction_date, sales_invoices.invoice_date, purchase_invoices.invoice_date, financial_transactions.created_at) as transaction_date")
+            ->selectRaw("COALESCE(payments.payment_number, financial_transactions.receipt_number) as payment_number")
+            ->selectRaw("COALESCE(sales_invoices.invoice_number, purchase_invoices.invoice_number) as invoice_number");
 
         $dateExpr = "COALESCE(cash_transactions.transaction_date, sales_invoices.invoice_date, purchase_invoices.invoice_date, financial_transactions.created_at)";
 

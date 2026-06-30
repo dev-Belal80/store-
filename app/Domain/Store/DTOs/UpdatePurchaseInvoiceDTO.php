@@ -8,7 +8,7 @@ class UpdatePurchaseInvoiceDTO
     public function __construct(
         public readonly int    $invoiceId,
         public readonly string $storeId,
-        public readonly string $invoiceNumber,
+        public readonly ?string $invoiceNumber,
         public readonly string $invoiceDate,
         public readonly string $supplierId,
         public readonly array  $items,
@@ -32,7 +32,7 @@ class UpdatePurchaseInvoiceDTO
         return new self(
             invoiceId: $invoiceId,
             storeId: $storeId,
-            invoiceNumber: $data['invoice_number'],
+            invoiceNumber: $data['invoice_number'] ?? null,
             invoiceDate: $data['invoice_date'] ?? date('Y-m-d'),
             supplierId: $data['supplier_id'],
             items: $items,

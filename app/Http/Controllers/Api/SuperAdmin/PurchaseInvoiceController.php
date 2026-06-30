@@ -43,13 +43,7 @@ class PurchaseInvoiceController extends Controller
             ])
             ->with('supplier:id,name,phone')
             ->when($request->filled('search'), function ($q) use ($request) {
-                $search = '%' . $request->search . '%';
-
-                $q->where('invoice_number', 'like', $search)
-                    ->orWhereHas('supplier', function ($supplierQuery) use ($search) {
-                        $supplierQuery->where('name', 'like', $search)
-                            ->orWhere('phone', 'like', $search);
-                    });
+                $q->where('invoice_number', 'like', '%' . $request->search . '%');
             })
             ->when($request->status,      fn($q) => $q->where('status', $request->status))
             ->when($request->supplier_id, fn($q) => $q->where('supplier_id', $request->supplier_id))
